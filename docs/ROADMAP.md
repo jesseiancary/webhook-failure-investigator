@@ -12,33 +12,34 @@ Phased, actionable build plan. Each phase is a shippable increment; check items 
 **Skills demonstrated:** toolchain fluency, repeatable workflows, developer experience.
 
 ### Repo conventions
-- [ ] Create root `CLAUDE.md` describing the project, architecture, and directory layout.
-- [ ] Document naming conventions and the monorepo structure (`/server`, `/web`, `/docs`).
-- [ ] Record the core rule: **every LLM claim must be grounded in log evidence**.
-- [ ] List canonical commands (install, dev, test, lint, typecheck, migrate, seed, eval).
+- [x] Create root `CLAUDE.md` describing the project, architecture, and directory layout.
+- [x] Document naming conventions and the monorepo structure (`/server`, `/web`, `/docs`).
+- [x] Record the core rule: **every LLM claim must be grounded in log evidence**.
+- [x] List canonical commands (install, dev, test, lint, typecheck, migrate, seed, eval).
 
 ### Settings & hooks
-- [ ] Create `.claude/settings.json` with a permission allowlist (pnpm/npm, prisma, vitest, tsc, read-only git).
-- [ ] Add a post-edit hook running `tsc --noEmit` + Prettier on changed TS files.
-- [ ] Add a typecheck/test gate before commits.
+- [x] Create `.claude/settings.json` with a permission allowlist (pnpm/npm, prisma, vitest, tsc, read-only git).
+- [x] Add a post-edit hook running `tsc --noEmit` + Prettier on changed TS files. _(defensive: no-ops until Phase 2 toolchain exists)_
+- [x] Add a typecheck/test gate before commits. _(PreToolUse gate on `git commit`, defensive)_
 
 ### Slash commands (`.claude/commands/`)
-- [ ] `/seed-scenario` — scaffold a new seeded failure scenario (event + attempts + expected label).
-- [ ] `/eval` — run the LLM eval harness and print the scorecard.
-- [ ] `/migrate` — generate + apply a Prisma migration.
-- [ ] `/typecheck` — typecheck both workspaces.
+- [x] `/seed-scenario` — scaffold a new seeded failure scenario (event + attempts + expected label).
+- [x] `/eval` — run the LLM eval harness and print the scorecard.
+- [x] `/migrate` — generate + apply a Prisma migration.
+- [x] `/typecheck` — typecheck both workspaces.
+- [x] `/pr` — read uncommitted changes and generate a copy-pasteable PR title + description.
 
 ### Subagents (`.claude/agents/`)
-- [ ] `prompt-evaluator` — run the eval set against a prompt version, report regressions.
-- [ ] `pr-reviewer` — review a diff against project conventions before pushing.
+- [x] `prompt-evaluator` — run the eval set against a prompt version, report regressions.
+- [x] `pr-reviewer` — review a diff against project conventions before pushing.
 
 ### Skill (`.claude/skills/`)
-- [ ] `add-provider` — document the repeatable steps to onboard a new webhook provider.
+- [x] `add-provider` — document the repeatable steps to onboard a new webhook provider.
 
 ### Verification
-- [ ] A slash command runs end to end (e.g. `/typecheck`).
-- [ ] The post-edit hook fires and formats/typechecks a sample edit.
-- [ ] `CLAUDE.md` accurately reflects the intended layout.
+- [x] A slash command runs end to end (`/typecheck` returns the graceful "toolchain not set up yet" message in the current repo, as designed).
+- [ ] The post-edit hook fires and formats/typechecks a sample edit. _(deferred to Phase 2 — hook verified to no-op cleanly today across all guard paths)_
+- [x] `CLAUDE.md` accurately reflects the intended layout.
 
 ---
 
