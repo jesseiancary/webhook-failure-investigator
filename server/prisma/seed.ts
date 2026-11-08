@@ -1,10 +1,18 @@
-// Seed entrypoint. The labeled scenario library lands in Roadmap Phase 3 (PR4);
-// until then this is a graceful no-op so `pnpm --filter server db:seed` works.
+// Seed CLI entry (run via `pnpm --filter server db:seed` / `prisma db seed`). Thin wrapper: the
+// loader and the scenario library live under src/ (typechecked + unit-tested); this file just runs
+// it and manages the process lifecycle. Kept here by Prisma convention (package.json `prisma.seed`).
+import { prisma } from '../src/db/client.js';
+import { seedScenarios } from '../src/ingest/seed.js';
+
 async function main(): Promise<void> {
-  console.log('db:seed — no scenarios yet (seeded scenario library arrives in Phase 3 PR4).');
+  const { created } = await seedScenarios();
+  console.log(`db:seed — seeded ${created} labeled scenario(s).`);
 }
 
-main().catch((err: unknown) => {
-  console.error(err);
-  process.exit(1);
-});
+main()
+  .then(() => prisma.$disconnect())
+  .catch(async (err: unknown) => {
+    console.error(err);
+    await prisma.$disconnect();
+    process.exit(1);
+  });

@@ -92,9 +92,9 @@ Phased, actionable build plan. Each phase is a shippable increment; check items 
 
 ### Seeded scenarios
 
-- [ ] Build a seed script with 8–12 realistic failure scenarios (Stripe/GitHub/Slack style).
-- [ ] Cover: 401 expired token, 400 payload mismatch, timeout, DNS/network failure, 429 rate limit, 5xx server error, 2xx application-logic/idempotency, and an ambiguous/insufficient-evidence case.
-- [ ] Attach an expected diagnosis label to each scenario (for evals later).
+- [x] Build a seed script with 8–12 realistic failure scenarios (Stripe/GitHub/Slack style). _(PR4: 11 scenarios in `server/src/ingest/scenarios/`, loaded via `db:seed` through the `createEvent` redaction choke point; idempotent re-seed on a `seed_` id namespace)_
+- [x] Cover: 401 expired token, 400 payload mismatch, timeout, DNS/network failure, 429 rate limit, 5xx server error, 2xx application-logic/idempotency, and an ambiguous/insufficient-evidence case. _(PR4: all eight categories covered, plus a multi-attempt 429→200 retry and a body-secret redaction demo)_
+- [x] Attach an expected diagnosis label to each scenario (for evals later). _(PR4: each `Scenario` carries `expected.category` + `expected.evidence[]`; not persisted — read directly by the Phase 8 eval)_
 
 ### Ingestion endpoints
 
@@ -105,7 +105,7 @@ Phased, actionable build plan. Each phase is a shippable increment; check items 
 
 ### Verification
 
-- [ ] `prisma migrate dev && db:seed` populates all scenarios.
+- [x] `prisma migrate dev && db:seed` populates all scenarios. _(PR4: `db:seed` loads the 11-scenario library; re-running is idempotent)_
 - [x] A test webhook sent to `/capture/:token` appears as a stored event with redacted secrets.
 
 ---
