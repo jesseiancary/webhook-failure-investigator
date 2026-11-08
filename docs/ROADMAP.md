@@ -63,7 +63,7 @@ Phased, actionable build plan. Each phase is a shippable increment; check items 
 
 ### Local infrastructure
 
-- [x] Write `docker-compose.yml` (Postgres + app) with a named volume. _(PR3: Postgres service + `wfi_pgdata` volume + healthcheck; app runs on host via `pnpm dev` — containerizing the server is deferred to Phase 9)_
+- [x] Write `docker-compose.yml` (Postgres + app) with a named volume. _(PR3: Postgres service + `wfi_pgdata` volume + healthcheck; app runs on host via `pnpm dev` — containerizing the server is deferred to Phase 9 (Full Local Containerization))_
 - [x] Add `.env.example` documenting all required env vars (DB URL, `OPENAI_API_KEY`, etc.). _(PR3)_
 - [x] Add a `README` quickstart (install → compose up → migrate → dev). _(PR3: migrate/seed noted as Phase 3)_
 
@@ -240,7 +240,42 @@ Phased, actionable build plan. Each phase is a shippable increment; check items 
 
 ---
 
-## Phase 9 — Deploy & Hardening
+## Phase 9 — Full Local Containerization
+
+**Goal:** Run the entire stack — server, web, and Postgres — in containers with one command, achieving dev/prod parity without giving up a fast edit loop.
+**Skills demonstrated:** Docker multi-stage builds, container networking, orchestration, dev/prod parity.
+
+> Deferred here (not earlier) on purpose: the prompt-engineering (Phases 4–6) and UI (Phase 7) work iterates hardest, and a fast host `pnpm dev` loop — especially on WSL2, where bind-mount file-watching into containers is slow — keeps that work friction-free. The images written here become the basis for the Phase 10 production build.
+
+### Service images
+
+- [ ] `server/Dockerfile` — multi-stage (deps → build → slim runtime on `node:22-alpine`), runs as a non-root user, boots `dist/index.js`.
+- [ ] `web/Dockerfile` — a dev target (Vite dev server) now; stub a production static/nginx target to be finished in Phase 10.
+- [ ] Per-workspace `.dockerignore` (exclude `node_modules`, `dist`, `.env`, coverage).
+
+### Compose orchestration
+
+- [ ] Add `server` and `web` services to `docker-compose.yml`, networked to `postgres`.
+- [ ] Gate app startup on DB health: `depends_on: postgres: { condition: service_healthy }`.
+- [ ] Container-network `DATABASE_URL` (host `postgres`, not `localhost`); load env via `env_file`.
+- [ ] Preserve hot-reload in-container: bind-mount source + a named volume for `node_modules`; enable watch polling for reliable file-watching on WSL2.
+- [ ] Keep the Postgres-only path available (compose profile or `docker-compose.override.yml`) so host `pnpm dev` still works.
+
+### Docs & parity
+
+- [ ] README: document `docker compose up` (full stack) vs. host `pnpm dev`, and the container vs. host `DATABASE_URL`.
+- [ ] `.env.example`: distinguish host (`localhost`) from container (`postgres`) `DATABASE_URL`.
+
+### Verification
+
+- [ ] `docker compose up` brings up postgres + server + web; `curl localhost:3000/health` returns `{"status":"ok"}` from the container.
+- [ ] The containerized server connects to the containerized Postgres and runs a seeded investigation end to end.
+- [ ] Editing a `.ts`/`.tsx` source file hot-reloads inside the container.
+- [ ] `docker compose down -v` cleans up; the host `pnpm dev` path still works.
+
+---
+
+## Phase 10 — Deploy & Hardening
 
 **Goal:** A live, reasonably secure URL.
 **Skills demonstrated:** deployment, security awareness, ops.
@@ -265,7 +300,7 @@ Phased, actionable build plan. Each phase is a shippable increment; check items 
 
 ---
 
-## Phase 10 — Portfolio Presentation
+## Phase 11 — Portfolio Presentation
 
 **Goal:** Make the work legible and compelling to hiring managers.
 **Skills demonstrated:** communication, technical writing.
