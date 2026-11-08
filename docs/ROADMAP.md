@@ -86,9 +86,9 @@ Phased, actionable build plan. Each phase is a shippable increment; check items 
 
 ### Schema & migrations
 
-- [ ] Define the Prisma schema: `WebhookEvent`, `DeliveryAttempt`, `Investigation`, `InvestigationMessage`, `ApiDoc`.
-- [ ] Add the `failureCategory` enum (8 values per PLAN.md §4).
-- [ ] Generate and apply the initial migration.
+- [x] Define the Prisma schema: `WebhookEvent`, `DeliveryAttempt`, `Investigation`, `InvestigationMessage`, `ApiDoc`.
+- [x] Add the `failureCategory` enum (8 values per PLAN.md §4).
+- [x] Generate and apply the initial migration.
 
 ### Seeded scenarios
 
@@ -98,15 +98,15 @@ Phased, actionable build plan. Each phase is a shippable increment; check items 
 
 ### Ingestion endpoints
 
-- [ ] `POST /capture/:token` — record real inbound webhooks (headers, body, response).
-- [ ] Manual submission API — paste an event + request/response + logs.
-- [ ] Redact secrets (auth headers, tokens) before storage.
-- [ ] `GET /events` and `GET /events/:id` read endpoints.
+- [x] `POST /capture/:token` — record real inbound webhooks (headers, body, response).
+- [x] Manual submission API — paste an event + request/response + logs.
+- [x] Redact secrets (auth headers, tokens) before storage.
+- [x] `GET /events` and `GET /events/:id` read endpoints.
 
 ### Verification
 
 - [ ] `prisma migrate dev && db:seed` populates all scenarios.
-- [ ] A test webhook sent to `/capture/:token` appears as a stored event with redacted secrets.
+- [x] A test webhook sent to `/capture/:token` appears as a stored event with redacted secrets.
 
 ---
 
