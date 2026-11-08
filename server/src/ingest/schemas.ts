@@ -30,6 +30,13 @@ export const ManualSubmissionSchema = z.object({
   attempts: z.array(AttemptSchema).min(1),
 });
 
+/** Body for minting a live-capture endpoint (`POST /capture-endpoints`). Both fields optional. */
+export const CaptureEndpointInputSchema = z.object({
+  source: z.string().min(1).optional(),
+  name: z.string().min(1).optional(),
+});
+
 export type Headers = z.infer<typeof HeadersSchema>;
 export type Attempt = z.infer<typeof AttemptSchema>;
 export type ManualSubmission = z.infer<typeof ManualSubmissionSchema>;
+export type CaptureEndpointInput = z.infer<typeof CaptureEndpointInputSchema>;

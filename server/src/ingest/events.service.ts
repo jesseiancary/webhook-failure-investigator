@@ -15,14 +15,22 @@ function toJsonHeaders(headers: ManualSubmission['headers']): Prisma.InputJsonVa
   return redactHeaders(headers) as Prisma.InputJsonValue;
 }
 
-/** Persist a webhook event and its delivery attempts, redacting secrets along the way. */
-export async function createEvent(input: ManualSubmission) {
+/**
+ * Persist a webhook event and its delivery attempts, redacting secrets along the way. Both manual
+ * submission and live capture flow through here; `opts.captureEndpointId` links a captured event
+ * to the endpoint it arrived on (manual submissions pass nothing and stay unlinked).
+ */
+export async function createEvent(input: ManualSubmission, opts?: { captureEndpointId?: string }) {
   return prisma.webhookEvent.create({
     data: {
       source: input.source,
       eventType: input.eventType,
       payload: toJson(input.payload ?? {}),
       headers: toJsonHeaders(input.headers),
+      captureEndpoint:
+        opts?.captureEndpointId !== undefined
+          ? { connect: { id: opts.captureEndpointId } }
+          : undefined,
       attempts: {
         create: input.attempts.map((attempt) => ({
           requestUrl: attempt.requestUrl,
@@ -55,7 +63,7 @@ export async function listEvents() {
       source: true,
       eventType: true,
       receivedAt: true,
-      // captureToken intentionally omitted: it is PR3's capture-routing secret, not summary data.
+      // No capture secret here: the token lives on CaptureEndpoint, never on the event.
       _count: { select: { attempts: true } },
     },
   });
