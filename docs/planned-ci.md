@@ -4,12 +4,13 @@ Phased plan for GitHub Actions CI on this repo. **This is the authoritative gate
 
 ## Status
 
-CI is live as of **Phase 2 (PR2)**: [`.github/workflows/ci.yml`](../.github/workflows/ci.yml) runs on every pull request and on pushes to `main`, with two jobs:
+CI is live as of **Phase 2 (PR2)**: [`.github/workflows/ci.yml`](../.github/workflows/ci.yml) runs on every pull request and on pushes to `main`, with three jobs:
 
 - **`quality`** — `pnpm install --frozen-lockfile` → `typecheck` → `lint` → `format:check` → `test` → `build`.
+- **`data-layer`** — the Phase 3 data gates: `prisma validate`, `prisma migrate deploy` (committed migrations apply cleanly against a Postgres service), and a `prisma migrate diff --exit-code` drift check (schema vs. migration history). Wired in Phase 3 (PR1).
 - **`tooling`** — the Phase 1 "runnable now" gates: `.claude/settings.json` JSON validation, `shellcheck` over the hooks and CI scripts, the hooks' no-op guarantee, frontmatter lint ([`scripts/ci/check-frontmatter.sh`](../scripts/ci/check-frontmatter.sh)), and internal doc-link resolution ([`scripts/ci/check-doc-links.sh`](../scripts/ci/check-doc-links.sh)).
 
-Later-phase gates (Prisma, secret-redaction, e2e, eval) are **not yet wired** — they activate as their data layer / UI / eval harness land. This document remains the authoritative catalog that `/pr` reads to advise which checks are relevant for a given change set. See [ROADMAP.md](./ROADMAP.md) Phase 2 ("CI") and [PLAN.md](./PLAN.md) §7 ("Verification Strategy").
+Remaining later-phase gates (secret-redaction, e2e, eval) are **not yet wired** — they activate as their fixtures / UI / eval harness land. This document remains the authoritative catalog that `/pr` reads to advise which checks are relevant for a given change set. See [ROADMAP.md](./ROADMAP.md) Phase 2 ("CI") and [PLAN.md](./PLAN.md) §7 ("Verification Strategy").
 
 ---
 
@@ -89,7 +90,7 @@ Skim-friendly summary for `/pr` to reason over.
 Recommended settings for `main` (configured in the GitHub repo UI → Settings → Branches, so not expressible in-repo):
 
 - Require a pull request before merging.
-- Require status checks to pass before merging, and require branches to be up to date. Required checks: **`Typecheck, lint, format, test, build`** and **`Claude tooling gates`** (the two `ci.yml` job names).
+- Require status checks to pass before merging, and require branches to be up to date. Required checks: **`Typecheck, lint, format, test, build`**, **`Prisma schema and migrations`**, and **`Claude tooling gates`** (the three `ci.yml` job names).
 - Dismiss stale approvals on new commits.
 - Include administrators (optional but recommended for a portfolio repo).
 
