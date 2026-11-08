@@ -1,0 +1,106 @@
+// Webhook Failure Investigator — data model (Roadmap Phase 3).
+//
+// All five tables are defined now even though Investigation, InvestigationMessage,
+// and ApiDoc are not written to until Phases 4–5. Later phases add columns, not
+// tables, which keeps migrations additive. See docs/PLAN.md §4.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+/// The failure taxonomy that drives classification. Mirrored on the JS side by
+/// FAILURE_CATEGORIES in src/domain/failure-category.ts (kept in sync by a test).
+enum FailureCategory {
+  authentication
+  payload_validation
+  timeout
+  network_failure
+  rate_limit
+  server_error
+  application_logic
+  insufficient_evidence
+}
+
+/// An inbound webhook event — captured live (POST /capture/:token) or submitted manually.
+model WebhookEvent {
+  id             String            @id @default(cuid())
+  source         String
+  eventType      String
+  payload        Json
+  headers        Json
+  receivedAt     DateTime          @default(now())
+  captureToken   String?
+  attempts       DeliveryAttempt[]
+  investigations Investigation[]
+
+  @@index([source])
+  @@index([captureToken])
+  @@index([receivedAt])
+}
+
+/// A single delivery attempt for an event. Secrets are redacted before storage.
+model DeliveryAttempt {
+  id              String       @id @default(cuid())
+  event           WebhookEvent @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  eventId         String
+  requestUrl      String
+  requestMethod   String
+  requestHeaders  Json
+  requestBody     Json?
+  responseStatus  Int?
+  responseHeaders Json?
+  responseBody    Json?
+  latencyMs       Int?
+  errorText       String?
+  attemptedAt     DateTime     @default(now())
+
+  @@index([eventId])
+}
+
+/// One run of the LLM analysis over an event. Populated from Phase 4 onward.
+model Investigation {
+  id               String                 @id @default(cuid())
+  event            WebhookEvent           @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  eventId          String
+  diagnosis        Json
+  failureCategory  FailureCategory
+  confidence       Float
+  model            String
+  promptVersion    String?
+  promptTokens     Int
+  completionTokens Int
+  costUsd          Decimal                @db.Decimal(10, 6)
+  createdAt        DateTime               @default(now())
+  messages         InvestigationMessage[]
+
+  @@index([eventId])
+  @@index([failureCategory])
+}
+
+/// The follow-up conversation thread scoped to an investigation (Phase 6).
+model InvestigationMessage {
+  id              String        @id @default(cuid())
+  investigation   Investigation @relation(fields: [investigationId], references: [id], onDelete: Cascade)
+  investigationId String
+  role            String
+  content         String
+  toolCalls       Json?
+  createdAt       DateTime      @default(now())
+
+  @@index([investigationId])
+}
+
+/// Retrievable reference docs for the fetch_api_docs tool (Phase 5). Keyword retrieval in v1.
+model ApiDoc {
+  id       String @id @default(cuid())
+  provider String
+  section  String
+  content  String
+
+  @@index([provider])
+}

@@ -30,6 +30,53 @@ jobs:
       - run: pnpm test
       - run: pnpm build
 
+  data-layer:
+    name: Prisma schema and migrations
+    runs-on: ubuntu-latest
+    # Relevant when server/prisma/schema.prisma or server/prisma/migrations/ change
+    # (see docs/planned-ci.md: prisma-validate + migration-drift). Runs on every PR for
+    # simplicity, consistent with the other always-on jobs; the checks are fast.
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: wfi
+          POSTGRES_PASSWORD: wfi_dev_password
+          POSTGRES_DB: wfi
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U wfi -d wfi"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://wfi:wfi_dev_password@localhost:5432/wfi?schema=public
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+
+      - name: Validate Prisma schema
+        run: pnpm --filter server exec prisma validate
+
+      - name: Committed migrations apply cleanly
+        run: pnpm --filter server exec prisma migrate deploy
+
+      - name: No schema/migration drift
+        # After deploy, the DB reflects the migration history. If schema.prisma was
+        # edited without a matching migration, its datamodel diverges from the DB and
+        # this diff is non-empty (--exit-code => exit 2).
+        run: >-
+          pnpm --filter server exec prisma migrate diff
+          --from-schema-datasource prisma/schema.prisma
+          --to-schema-datamodel prisma/schema.prisma
+          --exit-code
+
   tooling:
     name: Claude tooling gates
     runs-on: ubuntu-latest
