@@ -16,6 +16,24 @@ jobs:
   quality:
     name: Typecheck, lint, format, test, build
     runs-on: ubuntu-latest
+    # Postgres backs the API integration tests (Supertest -> Prisma). typecheck/lint/build
+    # don't need it, but it runs alongside so `pnpm test` stays a single command.
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: wfi
+          POSTGRES_PASSWORD: wfi_dev_password
+          POSTGRES_DB: wfi
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U wfi -d wfi"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://wfi:wfi_dev_password@localhost:5432/wfi?schema=public
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -27,6 +45,8 @@ jobs:
       - run: pnpm typecheck
       - run: pnpm lint
       - run: pnpm format:check
+      - name: Apply migrations to the test database
+        run: pnpm --filter server exec prisma migrate deploy
       - run: pnpm test
       - run: pnpm build
 
@@ -105,3 +125,6 @@ jobs:
 
       - name: Internal doc links resolve
         run: ./scripts/ci/check-doc-links.sh
+
+      - name: No raw secrets in seed/fixture/snapshot data
+        run: ./scripts/ci/check-secret-redaction.sh

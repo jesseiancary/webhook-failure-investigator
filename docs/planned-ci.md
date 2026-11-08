@@ -6,11 +6,11 @@ Phased plan for GitHub Actions CI on this repo. **This is the authoritative gate
 
 CI is live as of **Phase 2 (PR2)**: [`.github/workflows/ci.yml`](../.github/workflows/ci.yml) runs on every pull request and on pushes to `main`, with three jobs:
 
-- **`quality`** — `pnpm install --frozen-lockfile` → `typecheck` → `lint` → `format:check` → `test` → `build`.
+- **`quality`** — `pnpm install --frozen-lockfile` → `typecheck` → `lint` → `format:check` → `prisma migrate deploy` → `test` → `build`. Provisions a `postgres:16-alpine` service (Phase 3 PR2) so the Supertest API integration tests run against a real migrated database.
 - **`data-layer`** — the Phase 3 data gates: `prisma validate`, `prisma migrate deploy` (committed migrations apply cleanly against a Postgres service), and a `prisma migrate diff --exit-code` drift check (schema vs. migration history). Wired in Phase 3 (PR1).
-- **`tooling`** — the Phase 1 "runnable now" gates: `.claude/settings.json` JSON validation, `shellcheck` over the hooks and CI scripts, the hooks' no-op guarantee, frontmatter lint ([`scripts/ci/check-frontmatter.sh`](../scripts/ci/check-frontmatter.sh)), and internal doc-link resolution ([`scripts/ci/check-doc-links.sh`](../scripts/ci/check-doc-links.sh)).
+- **`tooling`** — the Phase 1 "runnable now" gates plus the secret-redaction guard: `.claude/settings.json` JSON validation, `shellcheck` over the hooks and CI scripts, the hooks' no-op guarantee, frontmatter lint ([`scripts/ci/check-frontmatter.sh`](../scripts/ci/check-frontmatter.sh)), internal doc-link resolution ([`scripts/ci/check-doc-links.sh`](../scripts/ci/check-doc-links.sh)), and the secret-redaction guard over seed/fixture/snapshot data ([`scripts/ci/check-secret-redaction.sh`](../scripts/ci/check-secret-redaction.sh), wired in Phase 3 PR2).
 
-Remaining later-phase gates (secret-redaction, e2e, eval) are **not yet wired** — they activate as their fixtures / UI / eval harness land. This document remains the authoritative catalog that `/pr` reads to advise which checks are relevant for a given change set. See [ROADMAP.md](./ROADMAP.md) Phase 2 ("CI") and [PLAN.md](./PLAN.md) §7 ("Verification Strategy").
+Remaining later-phase gates (e2e, eval) are **not yet wired** — they activate as the UI / eval harness land. This document remains the authoritative catalog that `/pr` reads to advise which checks are relevant for a given change set. See [ROADMAP.md](./ROADMAP.md) Phase 2 ("CI") and [PLAN.md](./PLAN.md) §7 ("Verification Strategy").
 
 ---
 
