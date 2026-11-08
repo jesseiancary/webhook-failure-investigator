@@ -28,7 +28,14 @@ Stop Postgres with `docker compose down` (add `-v` to also drop the data volume)
 
 > If host port 5432 is already in use, set `POSTGRES_PORT` in `.env` (and update `DATABASE_URL` to match).
 
-> Database migrations and seed data (`pnpm --filter @wfi/server prisma migrate dev`, `db:seed`) arrive in Phase 3.
+> Set up the database, then load the scenario library:
+>
+> ```sh
+> pnpm --filter @wfi/server prisma migrate dev   # create/apply the schema
+> pnpm --filter @wfi/server db:seed              # load 11 labeled failure scenarios (idempotent)
+> ```
+>
+> Seeded events use stable `seed_*` ids (e.g. `GET /events/seed_stripe_auth_401`); re-running `db:seed` refreshes them without touching live-captured events.
 
 ## Commands
 

@@ -19,10 +19,16 @@ function toJsonHeaders(headers: ManualSubmission['headers']): Prisma.InputJsonVa
  * Persist a webhook event and its delivery attempts, redacting secrets along the way. Both manual
  * submission and live capture flow through here; `opts.captureEndpointId` links a captured event
  * to the endpoint it arrived on (manual submissions pass nothing and stay unlinked).
+ * `opts.id` lets the seed loader supply a stable id (e.g. `seed_stripe_auth_401`) for idempotent
+ * re-seeding; omitted everywhere else, so Prisma falls back to the `@default(cuid())`.
  */
-export async function createEvent(input: ManualSubmission, opts?: { captureEndpointId?: string }) {
+export async function createEvent(
+  input: ManualSubmission,
+  opts?: { captureEndpointId?: string; id?: string },
+) {
   return prisma.webhookEvent.create({
     data: {
+      id: opts?.id,
       source: input.source,
       eventType: input.eventType,
       payload: toJson(input.payload ?? {}),
