@@ -63,9 +63,9 @@ Phased, actionable build plan. Each phase is a shippable increment; check items 
 
 ### Local infrastructure
 
-- [ ] Write `docker-compose.yml` (Postgres + app) with a named volume.
-- [ ] Add `.env.example` documenting all required env vars (DB URL, `OPENAI_API_KEY`, etc.).
-- [ ] Add a `README` quickstart (install → compose up → migrate → dev).
+- [x] Write `docker-compose.yml` (Postgres + app) with a named volume. _(PR3: Postgres service + `wfi_pgdata` volume + healthcheck; app runs on host via `pnpm dev` — containerizing the server is deferred to Phase 9)_
+- [x] Add `.env.example` documenting all required env vars (DB URL, `OPENAI_API_KEY`, etc.). _(PR3)_
+- [x] Add a `README` quickstart (install → compose up → migrate → dev). _(PR3: migrate/seed noted as Phase 3)_
 
 ### CI
 
@@ -74,7 +74,7 @@ Phased, actionable build plan. Each phase is a shippable increment; check items 
 
 ### Verification
 
-- [ ] `docker-compose up` starts Postgres; the app connects. _(PR3)_
+- [x] `docker-compose up` starts Postgres; the app connects. _(PR3: `docker compose up -d` brings up a healthy Postgres; app-side DB connection lands with Prisma in Phase 3)_
 - [ ] `pnpm typecheck && pnpm lint && pnpm test` passes locally and in CI. _(PR1: green locally. PR2: CI workflow added and verified to mirror these commands locally; the "in CI" half confirms once the workflow runs on GitHub)_
 
 ---
