@@ -60,7 +60,7 @@ Phased, actionable build plan. Each phase is a shippable increment; check items 
 - [ ] Add a `README` quickstart (install → compose up → migrate → dev).
 
 ### CI
-- [ ] GitHub Actions workflow: install, typecheck, lint, test on every PR.
+- [ ] GitHub Actions workflow: install, typecheck, lint, test on every PR. _(detailed gate catalog in [planned-ci.md](./planned-ci.md))_
 - [ ] Branch protection notes documented.
 
 ### Verification
