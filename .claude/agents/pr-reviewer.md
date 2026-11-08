@@ -16,7 +16,7 @@ You review the pending changes on the current branch against the Webhook Failure
 ## Checklist (project-specific — most important first)
 
 1. **Grounding rule.** Any LLM-facing prompt or diagnosis logic must require evidence citations and must return `insufficient_evidence` / `isSpeculative` when logs are thin. Flag anything that lets the model assert a cause without citing a real log field.
-2. **Secret redaction.** Delivery attempts must redact auth headers/tokens *before* persistence or logging. Flag any code path that stores or logs raw credentials.
+2. **Secret redaction.** Delivery attempts must redact auth headers/tokens _before_ persistence or logging. Flag any code path that stores or logs raw credentials.
 3. **Shared Zod schemas.** API validation and OpenAI structured-output contracts must come from the same schema. Flag duplicated/divergent shapes.
 4. **Token/cost accounting.** Every OpenAI call must record `model`, `promptTokens`, `completionTokens`, `costUsd` on the `Investigation`.
 5. **General quality.** Types at boundaries, error handling, naming conventions, tests for new behavior, no stray secrets in committed files.

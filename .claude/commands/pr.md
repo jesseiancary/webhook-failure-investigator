@@ -8,6 +8,7 @@ Generate a pull-request title and description for the current uncommitted change
 **Do not run any git mutation** (no branch, commit, push, or `gh pr create`) — the user handles that manually. This command only reads and produces text.
 
 Steps:
+
 1. Inspect the changes:
    - `git status --short` (includes untracked files).
    - `git diff HEAD` for tracked modifications.
@@ -27,4 +28,4 @@ Steps:
 
 Keep it faithful to the actual diff — do not invent changes that aren't present. If there are no uncommitted changes, say so and stop.
 
-**Advisory only:** the CI-gates step only *reads* `docs/planned-ci.md` and *lists* suggestions. It must not run, install, or configure any gate, and (as above) must not perform any git mutation.
+**Advisory only:** the CI-gates step only _reads_ `docs/planned-ci.md` and _lists_ suggestions. It must not run, install, or configure any gate, and (as above) must not perform any git mutation.

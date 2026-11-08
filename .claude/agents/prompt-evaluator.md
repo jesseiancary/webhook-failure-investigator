@@ -10,7 +10,7 @@ You evaluate changes to the Webhook Failure Investigator's LLM prompts and diagn
 ## When invoked
 
 1. Identify what changed — the system prompt, few-shot examples, the diagnosis Zod schema, or the tool-calling loop. Use `git diff` to scope it.
-2. If the eval harness exists, run it (`pnpm eval`) for the changed prompt version. If it does not exist yet (pre-Phase 8), say so and instead do a *static* review of the prompt change against the scenarios in the seed set.
+2. If the eval harness exists, run it (`pnpm eval`) for the changed prompt version. If it does not exist yet (pre-Phase 8), say so and instead do a _static_ review of the prompt change against the scenarios in the seed set.
 3. Compare against the previous baseline results.
 
 ## What to report

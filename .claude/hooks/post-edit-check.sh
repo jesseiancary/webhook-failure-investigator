@@ -53,7 +53,12 @@ fi
 # --- Typecheck (blocks on failure) -------------------------------------------
 
 if [ -f "$project_dir/tsconfig.json" ] && npx --no-install tsc --version >/dev/null 2>&1; then
-  if ! tsc_output="$(cd "$project_dir" && npx --no-install tsc --noEmit 2>&1)"; then
+  # Build mode (`-b`) walks the solution's project references so every
+  # workspace is typechecked from the root tsconfig; `--noEmit` suppresses output.
+  # Trade-off: `--noEmit` disables incremental .tsbuildinfo, so each edit triggers
+  # a cold full-repo typecheck. Fine at this size; if it gets slow, scope the check
+  # to the edited file's workspace (future optimization).
+  if ! tsc_output="$(cd "$project_dir" && npx --no-install tsc -b --noEmit 2>&1)"; then
     echo "post-edit-check: tsc --noEmit reported type errors:" >&2
     echo "$tsc_output" >&2
     exit 2
