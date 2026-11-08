@@ -12,6 +12,7 @@ Arguments: `$ARGUMENTS` — first token is the provider (e.g. `stripe`, `github`
 Valid failure categories (the taxonomy enum): `authentication`, `payload_validation`, `timeout`, `network_failure`, `rate_limit`, `server_error`, `application_logic`, `insufficient_evidence`.
 
 Steps:
+
 1. Validate the category against the enum above; if invalid or missing, list the options and ask.
 2. Create a realistic scenario for that provider + category, including:
    - A `WebhookEvent` (source, eventType, a plausible payload, headers).

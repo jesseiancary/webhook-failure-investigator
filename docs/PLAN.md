@@ -9,7 +9,7 @@ Developers integrating with third-party APIs constantly hit webhook delivery fai
 This app ingests a failed delivery — the webhook event, the request payload, the response, and the delivery logs — and uses an LLM to:
 
 1. **Classify** the failure into a well-defined category.
-2. **Explain** the root cause in plain language, *citing the actual log evidence*.
+2. **Explain** the root cause in plain language, _citing the actual log evidence_.
 3. **Recommend** concrete remediation steps.
 4. **Answer follow-up questions** with the original event held as context.
 
@@ -18,6 +18,7 @@ This app ingests a failed delivery — the webhook event, the request payload, t
 > The webhook failed because the receiving endpoint returned HTTP 401. The request included an expired bearer token. The endpoint was reachable, so this is unlikely to be a network issue.
 >
 > **Recommended action:**
+>
 > - Refresh the API credentials.
 > - Verify the token expiration policy.
 > - Retry delivery using the original event ID.
@@ -25,7 +26,7 @@ This app ingests a failed delivery — the webhook event, the request payload, t
 ### Project goals
 
 - **Learn LLM integration** — structured output, tool calling, context management, grounding, confidence handling.
-- **Land a job** — the primary audience is hiring managers. The app must be *fully functioning and usable*, with a live URL, a polished UI, tests, and evals — not a demo stub.
+- **Land a job** — the primary audience is hiring managers. The app must be _fully functioning and usable_, with a live URL, a polished UI, tests, and evals — not a demo stub.
 
 ### What this demonstrates to a hiring manager
 
@@ -36,35 +37,40 @@ Practical LLM engineering wired into a real backend workflow: a typed data model
 ## 2. Tech Stack
 
 ### Backend
+
 - **Node.js + TypeScript + Express** — matches the brief and prior experience.
 - **PostgreSQL via Prisma** — type-safe client + migrations; widely recognized by reviewers.
-- **Zod** — one set of schemas drives *both* API input validation *and* the LLM structured-output contract (single source of truth).
+- **Zod** — one set of schemas drives _both_ API input validation _and_ the LLM structured-output contract (single source of truth).
 - **OpenAI SDK** (`openai`) — Structured Outputs via `zodResponseFormat` (`openai/helpers/zod`) and function/tool calling.
 - **pino** structured logging + a token/cost accounting helper wrapping every model call.
 - Middleware: `helmet`, `cors`, rate limiting, request-id tracing, centralized error handling.
 
 ### Frontend
+
 - **React + TypeScript + Vite**.
 - **TailwindCSS + shadcn/ui** for a clean, professional look with low effort.
 - **TanStack Query** for server state; **React Router** for navigation.
 - **SSE streaming** chat UI for follow-up Q&A.
 
 ### Testing & Quality
+
 - **Vitest** (unit) + **Supertest** (API integration).
 - One **Playwright** happy-path e2e over the real UI.
 - ESLint + Prettier + `tsc --noEmit`.
 - An **LLM eval harness** with a labeled scenario set (see §7 and Roadmap Phase 8).
 
 ### Ops
+
 - **Docker Compose** for local dev (app + Postgres).
 - **GitHub Actions** CI: typecheck, lint, test on PR.
 - Deploy to **Railway / Render** with managed Postgres; secrets via env.
 
 ### Confirmed decisions
+
 - **LLM provider:** OpenAI.
-- **Frontend:** full React app (hiring managers must *see* it work).
+- **Frontend:** full React app (hiring managers must _see_ it work).
 - **Deployment:** Railway/Render → a live resume URL.
-- **Data:** both a seeded scenario library *and* a live webhook-capture endpoint.
+- **Data:** both a seeded scenario library _and_ a live webhook-capture endpoint.
 
 ---
 
@@ -92,19 +98,19 @@ Practical LLM engineering wired into a real backend workflow: a typed data model
                     └────────────┘   └────────────────┘
 ```
 
-**Core domain flow:** capture or seed a failed delivery → run an *investigation* (classify + root cause + remediation, grounded in logs, with a confidence score) → persist the structured diagnosis → allow threaded follow-up chat scoped to that event.
+**Core domain flow:** capture or seed a failed delivery → run an _investigation_ (classify + root cause + remediation, grounded in logs, with a confidence score) → persist the structured diagnosis → allow threaded follow-up chat scoped to that event.
 
 ---
 
 ## 4. Data Model (Prisma)
 
-| Model | Key fields | Notes |
-|---|---|---|
-| `WebhookEvent` | `id`, `source`, `eventType`, `payload` (jsonb), `headers` (jsonb), `receivedAt`, `captureToken?` | The inbound event. |
-| `DeliveryAttempt` | `id`, `eventId`, `requestUrl`, `requestMethod`, `requestHeaders`, `requestBody`, `responseStatus`, `responseHeaders`, `responseBody`, `latencyMs`, `errorText?`, `attemptedAt` | **Secrets redacted** before storage. |
-| `Investigation` | `id`, `eventId`, `diagnosis` (jsonb), `failureCategory` (enum), `confidence` (0–1), `model`, `promptTokens`, `completionTokens`, `costUsd`, `createdAt` | One run of the LLM analysis. |
-| `InvestigationMessage` | `id`, `investigationId`, `role` (system/user/assistant/tool), `content`, `toolCalls` (jsonb), `createdAt` | The follow-up conversation thread. |
-| `ApiDoc` | `id`, `provider`, `section`, `content` | Retrievable reference docs for the `fetch_api_docs` tool. Keyword retrieval in v1. |
+| Model                  | Key fields                                                                                                                                                                     | Notes                                                                              |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------- |
+| `WebhookEvent`         | `id`, `source`, `eventType`, `payload` (jsonb), `headers` (jsonb), `receivedAt`, `captureToken?`                                                                               | The inbound event.                                                                 |
+| `DeliveryAttempt`      | `id`, `eventId`, `requestUrl`, `requestMethod`, `requestHeaders`, `requestBody`, `responseStatus`, `responseHeaders`, `responseBody`, `latencyMs`, `errorText?`, `attemptedAt` | **Secrets redacted** before storage.                                               |
+| `Investigation`        | `id`, `eventId`, `diagnosis` (jsonb), `failureCategory` (enum), `confidence` (0–1), `model`, `promptTokens`, `completionTokens`, `costUsd`, `createdAt`                        | One run of the LLM analysis.                                                       |
+| `InvestigationMessage` | `id`, `investigationId`, `role` (system/user/assistant/tool), `content`, `toolCalls` (jsonb), `createdAt`                                                                      | The follow-up conversation thread.                                                 |
+| `ApiDoc`               | `id`, `provider`, `section`, `content`                                                                                                                                         | Retrievable reference docs for the `fetch_api_docs` tool. Keyword retrieval in v1. |
 
 **Failure taxonomy (enum, drives classification):**
 `authentication` · `payload_validation` · `timeout` · `network_failure` · `rate_limit` · `server_error` · `application_logic` · `insufficient_evidence`
@@ -116,6 +122,7 @@ Practical LLM engineering wired into a real backend workflow: a typed data model
 Each item maps directly to a skill the project is meant to demonstrate.
 
 1. **Structured output / JSON-schema enforcement.** A Zod schema → OpenAI Structured Outputs produces the diagnosis object:
+
    ```ts
    {
      failureCategory,            // enum above
@@ -132,7 +139,7 @@ Each item maps directly to a skill the project is meant to demonstrate.
    - `get_delivery_history(eventId)` → prior attempts for the event.
    - `get_event_payload(eventId)` → full request/response/headers.
    - `fetch_api_docs(provider, query)` → relevant `ApiDoc` sections.
-   Tool calls are persisted as `InvestigationMessage` rows.
+     Tool calls are persisted as `InvestigationMessage` rows.
 
 3. **Grounding / anti-hallucination.** The system prompt requires every claim to cite evidence from retrieved data. If evidence is insufficient, the model must return `failureCategory: insufficient_evidence` with `isSpeculative: true` rather than invent a cause. Evidence citations are rendered in the UI next to the explanation.
 
@@ -148,7 +155,7 @@ Each item maps directly to a skill the project is meant to demonstrate.
 
 ## 6. Claude Code Developer Tooling (`.claude/`)
 
-> This is tooling to help *build* the repo faster and demonstrate toolchain fluency. It is unrelated to the app's OpenAI integration. It is built in **Roadmap Phase 1**.
+> This is tooling to help _build_ the repo faster and demonstrate toolchain fluency. It is unrelated to the app's OpenAI integration. It is built in **Roadmap Phase 1**.
 
 - **`.claude/settings.json`** — permission allowlist for routine commands (pnpm/npm, prisma, vitest, tsc, read-only git); a **post-edit hook** running `tsc --noEmit` + Prettier on changed TS files; a typecheck/test gate.
 - **`CLAUDE.md`** (root) — project conventions: architecture, directory layout, naming, the "ground every LLM claim in logs" rule, and test/lint commands.

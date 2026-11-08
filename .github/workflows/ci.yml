@@ -1,0 +1,60 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    name: Typecheck, lint, format, test, build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm typecheck
+      - run: pnpm lint
+      - run: pnpm format:check
+      - run: pnpm test
+      - run: pnpm build
+
+  tooling:
+    name: Claude tooling gates
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate .claude/settings.json is valid JSON
+        run: jq empty .claude/settings.json
+
+      - name: Shellcheck hooks and CI scripts
+        run: shellcheck .claude/hooks/*.sh scripts/ci/*.sh
+
+      - name: Hooks no-op cleanly on irrelevant input
+        run: |
+          set -euo pipefail
+          # A non-TypeScript edit must be a clean no-op (exit 0).
+          printf '%s' '{"tool_input":{"file_path":"docs/ROADMAP.md"}}' \
+            | .claude/hooks/post-edit-check.sh
+          # A non-commit Bash command must pass the pre-commit gate (exit 0).
+          printf '%s' '{"tool_input":{"command":"echo hello"}}' \
+            | .claude/hooks/pre-commit-gate.sh
+          echo "hooks no-op guarantee: ok"
+
+      - name: Frontmatter lint (commands, agents, skills)
+        run: ./scripts/ci/check-frontmatter.sh
+
+      - name: Internal doc links resolve
+        run: ./scripts/ci/check-doc-links.sh

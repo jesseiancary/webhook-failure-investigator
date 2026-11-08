@@ -36,7 +36,8 @@ esac
 # --- Gate: typecheck ---------------------------------------------------------
 
 if [ -f "$project_dir/tsconfig.json" ] && npx --no-install tsc --version >/dev/null 2>&1; then
-  if ! out="$(cd "$project_dir" && npx --no-install tsc --noEmit 2>&1)"; then
+  # Build mode (`-b`) typechecks every referenced workspace from the root tsconfig.
+  if ! out="$(cd "$project_dir" && npx --no-install tsc -b --noEmit 2>&1)"; then
     echo "pre-commit-gate: blocking commit — tsc --noEmit failed:" >&2
     echo "$out" >&2
     exit 2

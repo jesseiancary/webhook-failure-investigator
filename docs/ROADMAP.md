@@ -12,17 +12,20 @@ Phased, actionable build plan. Each phase is a shippable increment; check items 
 **Skills demonstrated:** toolchain fluency, repeatable workflows, developer experience.
 
 ### Repo conventions
+
 - [x] Create root `CLAUDE.md` describing the project, architecture, and directory layout.
 - [x] Document naming conventions and the monorepo structure (`/server`, `/web`, `/docs`).
 - [x] Record the core rule: **every LLM claim must be grounded in log evidence**.
 - [x] List canonical commands (install, dev, test, lint, typecheck, migrate, seed, eval).
 
 ### Settings & hooks
+
 - [x] Create `.claude/settings.json` with a permission allowlist (pnpm/npm, prisma, vitest, tsc, read-only git).
 - [x] Add a post-edit hook running `tsc --noEmit` + Prettier on changed TS files. _(defensive: no-ops until Phase 2 toolchain exists)_
 - [x] Add a typecheck/test gate before commits. _(PreToolUse gate on `git commit`, defensive)_
 
 ### Slash commands (`.claude/commands/`)
+
 - [x] `/seed-scenario` — scaffold a new seeded failure scenario (event + attempts + expected label).
 - [x] `/eval` — run the LLM eval harness and print the scorecard.
 - [x] `/migrate` — generate + apply a Prisma migration.
@@ -30,15 +33,18 @@ Phased, actionable build plan. Each phase is a shippable increment; check items 
 - [x] `/pr` — read uncommitted changes and generate a copy-pasteable PR title + description.
 
 ### Subagents (`.claude/agents/`)
+
 - [x] `prompt-evaluator` — run the eval set against a prompt version, report regressions.
 - [x] `pr-reviewer` — review a diff against project conventions before pushing.
 
 ### Skill (`.claude/skills/`)
+
 - [x] `add-provider` — document the repeatable steps to onboard a new webhook provider.
 
 ### Verification
+
 - [x] A slash command runs end to end (`/typecheck` returns the graceful "toolchain not set up yet" message in the current repo, as designed).
-- [ ] The post-edit hook fires and formats/typechecks a sample edit. _(deferred to Phase 2 — hook verified to no-op cleanly today across all guard paths)_
+- [x] The post-edit hook fires and formats/typechecks a sample edit. _(activated in Phase 2 PR1: switched to `tsc -b --noEmit`; verified it blocks a deliberate type error)_
 - [x] `CLAUDE.md` accurately reflects the intended layout.
 
 ---
@@ -49,48 +55,56 @@ Phased, actionable build plan. Each phase is a shippable increment; check items 
 **Skills demonstrated:** project setup, build tooling, CI/CD.
 
 ### Scaffolding
-- [ ] Initialize the monorepo (`/server`, `/web`, `/docs`) with a workspace manager (pnpm).
-- [ ] Configure TypeScript (shared base `tsconfig`, per-workspace configs).
-- [ ] Set up ESLint + Prettier with shared config.
-- [ ] Set up Vitest with a sample passing test in each workspace.
+
+- [x] Initialize the monorepo (`/server`, `/web`, `/docs`) with a workspace manager (pnpm). _(PR1: pnpm workspaces)_
+- [x] Configure TypeScript (shared base `tsconfig`, per-workspace configs). _(PR1: `tsconfig.base.json` + solution-style root `tsconfig.json` with project references)_
+- [x] Set up ESLint + Prettier with shared config. _(PR1: flat `eslint.config.js` + `.prettierrc`)_
+- [x] Set up Vitest with a sample passing test in each workspace. _(PR1: `server` + `web` sample tests pass)_
 
 ### Local infrastructure
+
 - [ ] Write `docker-compose.yml` (Postgres + app) with a named volume.
 - [ ] Add `.env.example` documenting all required env vars (DB URL, `OPENAI_API_KEY`, etc.).
 - [ ] Add a `README` quickstart (install → compose up → migrate → dev).
 
 ### CI
-- [ ] GitHub Actions workflow: install, typecheck, lint, test on every PR. _(detailed gate catalog in [planned-ci.md](./planned-ci.md))_
-- [ ] Branch protection notes documented.
+
+- [x] GitHub Actions workflow: install, typecheck, lint, test on every PR. _(PR2: `.github/workflows/ci.yml` — `quality` job runs install/typecheck/lint/format/test/build; `tooling` job runs the Phase 1 gates. Detailed catalog in [planned-ci.md](./planned-ci.md))_
+- [x] Branch protection notes documented. _(PR2: see [planned-ci.md](./planned-ci.md) "Branch protection")_
 
 ### Verification
-- [ ] `docker-compose up` starts Postgres; the app connects.
-- [ ] `pnpm typecheck && pnpm lint && pnpm test` passes locally and in CI.
+
+- [ ] `docker-compose up` starts Postgres; the app connects. _(PR3)_
+- [ ] `pnpm typecheck && pnpm lint && pnpm test` passes locally and in CI. _(PR1: green locally. PR2: CI workflow added and verified to mirror these commands locally; the "in CI" half confirms once the workflow runs on GitHub)_
 
 ---
 
 ## Phase 3 — Data Model & Ingestion
 
-**Goal:** Persist webhook events and delivery attempts; support seeded *and* live data.
+**Goal:** Persist webhook events and delivery attempts; support seeded _and_ live data.
 **Skills demonstrated:** data modeling, realistic test data, real ingestion.
 
 ### Schema & migrations
+
 - [ ] Define the Prisma schema: `WebhookEvent`, `DeliveryAttempt`, `Investigation`, `InvestigationMessage`, `ApiDoc`.
 - [ ] Add the `failureCategory` enum (8 values per PLAN.md §4).
 - [ ] Generate and apply the initial migration.
 
 ### Seeded scenarios
+
 - [ ] Build a seed script with 8–12 realistic failure scenarios (Stripe/GitHub/Slack style).
 - [ ] Cover: 401 expired token, 400 payload mismatch, timeout, DNS/network failure, 429 rate limit, 5xx server error, 2xx application-logic/idempotency, and an ambiguous/insufficient-evidence case.
 - [ ] Attach an expected diagnosis label to each scenario (for evals later).
 
 ### Ingestion endpoints
+
 - [ ] `POST /capture/:token` — record real inbound webhooks (headers, body, response).
 - [ ] Manual submission API — paste an event + request/response + logs.
 - [ ] Redact secrets (auth headers, tokens) before storage.
 - [ ] `GET /events` and `GET /events/:id` read endpoints.
 
 ### Verification
+
 - [ ] `prisma migrate dev && db:seed` populates all scenarios.
 - [ ] A test webhook sent to `/capture/:token` appears as a stored event with redacted secrets.
 
@@ -102,20 +116,24 @@ Phased, actionable build plan. Each phase is a shippable increment; check items 
 **Skills demonstrated:** structured output, prompt engineering, classification, cost tracking.
 
 ### Structured output
+
 - [ ] Define the Zod diagnosis schema (shared with API validation).
 - [ ] Wire OpenAI Structured Outputs via `zodResponseFormat`.
 - [ ] Map the model output into the `Investigation` record.
 
 ### Prompting
+
 - [ ] Author a versioned system prompt encoding the failure taxonomy.
 - [ ] Add few-shot examples covering each category.
 - [ ] Store the prompt version on each `Investigation`.
 
 ### Endpoint & accounting
+
 - [ ] `POST /events/:id/investigate` runs a diagnosis and persists it.
 - [ ] Record `promptTokens`, `completionTokens`, `costUsd`, and `model` per run.
 
 ### Verification
+
 - [ ] Every response validates against the Zod schema (unit test).
 - [ ] Seeded 401 scenario classifies as `authentication` with correct remediation.
 - [ ] Token/cost fields are populated and plausible.
@@ -128,17 +146,20 @@ Phased, actionable build plan. Each phase is a shippable increment; check items 
 **Skills demonstrated:** tool calling, grounding, anti-hallucination.
 
 ### Tools
+
 - [ ] Implement `get_delivery_history(eventId)`.
 - [ ] Implement `get_event_payload(eventId)`.
 - [ ] Implement `fetch_api_docs(provider, query)` (keyword retrieval over `ApiDoc`).
 - [ ] Run a bounded tool-calling loop; persist each tool call as an `InvestigationMessage`.
 
 ### Grounding guardrails
+
 - [ ] Require evidence citations referencing real log fields in `evidence[]`.
 - [ ] Return `insufficient_evidence` + `isSpeculative: true` when data is thin.
 - [ ] Seed `ApiDoc` content for the demo providers.
 
 ### Verification
+
 - [ ] With a spy client, assert the model calls the retrieval tools.
 - [ ] The final answer cites fields that actually appear in returned data.
 - [ ] Stripping the logs yields `insufficient_evidence` rather than a fabricated cause.
@@ -151,16 +172,19 @@ Phased, actionable build plan. Each phase is a shippable increment; check items 
 **Skills demonstrated:** context-window management, streaming.
 
 ### Threaded chat
+
 - [ ] `POST /investigations/:id/chat` with SSE streaming responses.
 - [ ] Persist user/assistant/tool messages in `InvestigationMessage`.
 - [ ] Replay history scoped to the investigation on each turn.
 
 ### Context budgeting
+
 - [ ] Enforce a token budget per request.
 - [ ] Summarize/truncate long log bodies with pointers back to full data.
 - [ ] Use a cheaper model tier for follow-ups.
 
 ### Verification
+
 - [ ] A follow-up ("why not a network issue?") answers from persisted context.
 - [ ] A very long log thread stays within the context limit without erroring.
 
@@ -172,17 +196,20 @@ Phased, actionable build plan. Each phase is a shippable increment; check items 
 **Skills demonstrated:** full-stack delivery, UX for AI output.
 
 ### Core screens
+
 - [ ] Events dashboard (list of captured/seeded failures, filter by category/status).
 - [ ] Investigation detail: diagnosis, confidence badge, evidence citations, remediation checklist, retry-by-event-id affordance.
 - [ ] Streaming chat panel on the investigation detail page.
 - [ ] Scenario submission form (manual event entry).
 
 ### Polish
+
 - [ ] Tailwind + shadcn/ui styling, responsive layout, light/dark.
 - [ ] Loading/empty/error states; optimistic UX via TanStack Query.
 - [ ] Surface token/cost per investigation (nice credibility signal).
 
 ### Verification
+
 - [ ] Playwright happy-path e2e: submit → investigate → read diagnosis → ask a follow-up.
 - [ ] Evidence citations visibly link to the underlying log fields.
 
@@ -194,17 +221,20 @@ Phased, actionable build plan. Each phase is a shippable increment; check items 
 **Skills demonstrated:** LLM evaluation, measurable quality.
 
 ### Harness
+
 - [ ] Build a labeled scenario set from the seeds (category + expected evidence).
 - [ ] Score classification accuracy per prompt version.
 - [ ] Score grounding quality (does the answer cite real evidence?).
 - [ ] Spot-check confidence calibration (low confidence ↔ genuinely ambiguous cases).
 
 ### Reporting
+
 - [ ] `/eval` prints a scorecard; export results to `docs/`.
 - [ ] Optionally gate CI on a minimum accuracy/grounding threshold.
 - [ ] Publish the scorecard in the README.
 
 ### Verification
+
 - [ ] Running the harness on two prompt versions shows a comparable scorecard.
 - [ ] A deliberately regressed prompt is caught by the eval.
 
@@ -216,17 +246,20 @@ Phased, actionable build plan. Each phase is a shippable increment; check items 
 **Skills demonstrated:** deployment, security awareness, ops.
 
 ### Deploy
+
 - [ ] Provision Railway/Render service + managed Postgres.
 - [ ] Configure env/secrets; run migrations on deploy.
 - [ ] Set up a production build for `/web` served by or alongside the API.
 
 ### Hardening
+
 - [ ] Verify secret/header redaction in both storage and logs.
 - [ ] Add rate limiting on public endpoints.
 - [ ] Add a lightweight auth gate on write endpoints.
 - [ ] Set OpenAI usage/cost guardrails (per-request + daily cap).
 
 ### Verification
+
 - [ ] Deployed smoke test: run one seeded investigation and one follow-up on the live URL.
 - [ ] No secrets appear in stored records or logs.
 
@@ -238,6 +271,7 @@ Phased, actionable build plan. Each phase is a shippable increment; check items 
 **Skills demonstrated:** communication, technical writing.
 
 ### Documentation
+
 - [ ] README: architecture diagram, live demo link, quickstart.
 - [ ] Demo GIF/screenshots of the full flow.
 - [ ] "Engineering decisions" writeup (why structured output, how grounding is enforced, cost controls, context management).
@@ -245,5 +279,6 @@ Phased, actionable build plan. Each phase is a shippable increment; check items 
 - [ ] One-paragraph "what this demonstrates" summary for non-technical reviewers.
 
 ### Verification
+
 - [ ] A new reader can go from README → live demo → understanding the LLM design in under 5 minutes.
 - [ ] Every claim in the README is backed by something runnable in the repo.

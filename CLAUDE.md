@@ -7,6 +7,7 @@ Guidance for Claude Code when working in this repository.
 **Webhook Failure Investigator** — an AI assistant that investigates failed webhook deliveries and explains what went wrong, grounded in the actual delivery logs.
 
 Two goals drive every decision:
+
 1. **Learn real-world LLM integration** (structured output, tool calling, context management, grounding, confidence handling).
 2. **Serve as a portfolio piece for hiring managers** — it must be fully functioning and genuinely usable, not a demo stub.
 
@@ -16,15 +17,15 @@ Full rationale lives in [docs/PLAN.md](docs/PLAN.md); the phased build checklist
 
 **Every LLM-produced claim must be grounded in log evidence.** The diagnosis must cite the real request/response/log fields it relied on. When evidence is insufficient, return `failureCategory: insufficient_evidence` with `isSpeculative: true` rather than inventing a cause. This rule is the whole point of the project — never regress it.
 
-## Intended layout
+## Layout
 
-> The repo is mid-build. This is the **target** structure; the monorepo scaffold lands in **Phase 2** of the roadmap.
+> The repo is mid-build. The `/server` and `/web` workspace skeletons landed in **Phase 2 (PR1)**; their contents (Prisma, OpenAI integration, the real UI) fill in over later phases.
 
 ```
 /server        Express + TypeScript API, Prisma, OpenAI integration
 /web           React + TypeScript + Vite frontend
 /docs          PLAN.md, ROADMAP.md, eval scorecards
-/.claude       Claude Code developer tooling (this phase)
+/.claude       Claude Code developer tooling
 ```
 
 ## Tech stack
@@ -45,18 +46,18 @@ Full rationale lives in [docs/PLAN.md](docs/PLAN.md); the phased build checklist
 
 ## Commands
 
-> These become runnable in **Phase 2** once the monorepo + toolchain exist. Until then they are the intended interface.
+> Runnable as of **Phase 2 (PR1)**. Commands whose underlying feature arrives later (`migrate`, `db:seed`, `eval`) no-op gracefully until that phase lands.
 
-| Task | Command |
-|---|---|
-| Install | `pnpm install` |
-| Dev (all) | `pnpm dev` |
-| Typecheck | `pnpm typecheck` |
-| Lint | `pnpm lint` |
-| Test | `pnpm test` |
-| Migrate (dev) | `pnpm --filter server prisma migrate dev` |
-| Seed scenarios | `pnpm --filter server db:seed` |
-| Run evals | `pnpm eval` |
+| Task           | Command                                   |
+| -------------- | ----------------------------------------- |
+| Install        | `pnpm install`                            |
+| Dev (all)      | `pnpm dev`                                |
+| Typecheck      | `pnpm typecheck`                          |
+| Lint           | `pnpm lint`                               |
+| Test           | `pnpm test`                               |
+| Migrate (dev)  | `pnpm --filter server prisma migrate dev` |
+| Seed scenarios | `pnpm --filter server db:seed`            |
+| Run evals      | `pnpm eval`                               |
 
 ## Working agreements
 
