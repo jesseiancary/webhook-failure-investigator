@@ -19,5 +19,12 @@ Steps:
    - A **Changes** bulleted list grouped logically.
    - A **Test plan** / verification checklist when applicable.
    - Any noteworthy caveats, follow-ups, or deferred items.
+4. Append a **CI gates to consider** advisory section (in its own clearly-labeled block below the PR description):
+   - Read [docs/planned-ci.md](../../docs/planned-ci.md). If it does not exist, note that briefly and skip this section — do not fail.
+   - Using its mapping table, match the gates whose "relevant when" trigger covers the files in this change set.
+   - List the matches as a short checklist, marking each as either **runnable now** (Phase 1 gates) or **planned** (later-phase gates whose toolchain/data layer isn't present yet).
+   - Frame it as "suggested gates to run or add before committing this PR." Do not repeat gates irrelevant to the change set.
 
 Keep it faithful to the actual diff — do not invent changes that aren't present. If there are no uncommitted changes, say so and stop.
+
+**Advisory only:** the CI-gates step only *reads* `docs/planned-ci.md` and *lists* suggestions. It must not run, install, or configure any gate, and (as above) must not perform any git mutation.
