@@ -63,3 +63,42 @@ export function serializeAttempt(attempt: SerializableAttempt, index: number): s
 export function serializeAttempts(attempts: SerializableAttempt[]): string[] {
   return attempts.flatMap((attempt, index) => serializeAttempt(attempt, index));
 }
+
+/** The redacted event envelope the `get_event_payload` block is rendered from. */
+export interface SerializableEnvelope {
+  source: string;
+  eventType: string;
+  payload: unknown;
+  headers: unknown;
+}
+
+/**
+ * Render the `get_event_payload` text block for an already-redacted envelope. Pure (no DB, no
+ * redaction) so the live executor ([tools/event-tools.ts](./tools/event-tools.ts)) and the
+ * hand-authored tool-calling few-shots emit the *same* block — the format the model is taught to
+ * cite is the format it is given at inference time.
+ */
+export function formatEventPayloadBlock(envelope: SerializableEnvelope): string {
+  return [
+    'EVENT PAYLOAD',
+    'Cite evidence using the exact field paths shown below (e.g. payload.id, headers["content-type"]).',
+    '',
+    `source: ${formatValue(envelope.source)}`,
+    `eventType: ${formatValue(envelope.eventType)}`,
+    `payload: ${formatValue(envelope.payload)}`,
+    `headers: ${formatValue(envelope.headers)}`,
+  ].join('\n');
+}
+
+/**
+ * Render the `get_delivery_history` text block for already-redacted attempts (oldest-first). Pure,
+ * for the same reason as `formatEventPayloadBlock`: one serializer backs both the live executor and
+ * the few-shots. Zero attempts renders as `0 attempt(s)` — the thin-logs signal.
+ */
+export function formatDeliveryHistoryBlock(attempts: SerializableAttempt[]): string {
+  return [
+    `DELIVERY HISTORY — ${attempts.length} attempt(s)`,
+    'Cite evidence using the exact field paths shown below (e.g. attempts[0].responseStatus).',
+    ...serializeAttempts(attempts),
+  ].join('\n');
+}

@@ -164,6 +164,12 @@ Phased, actionable build plan. Each phase is a shippable increment; check items 
 - [ ] The final answer cites fields that actually appear in returned data.
 - [ ] Stripping the logs yields `insufficient_evidence` rather than a fabricated cause.
 
+### Follow-ups
+
+- [ ] Evaluate migrating the diagnosis client to the OpenAI Responses API to re-enable model
+      reasoning alongside function tools (currently forced to `reasoning_effort: 'none'` on
+      `chat.completions`, which disables reasoning on the tool path).
+
 ---
 
 ## Phase 6 — Follow-up Chat & Context Management

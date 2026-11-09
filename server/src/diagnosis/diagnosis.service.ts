@@ -2,7 +2,11 @@ import { Prisma } from '@prisma/client';
 import { prisma } from '../db/client.js';
 import { getEventById } from '../ingest/events.service.js';
 import type { Diagnosis } from './diagnosis.schema.js';
-import { createOpenAIDiagnosisClient, type DiagnosisClient } from './openai.js';
+import {
+  createOpenAIDiagnosisClient,
+  type DiagnosisClient,
+  type PersistedToolCall,
+} from './openai.js';
 import { computeCostUsd } from './pricing.js';
 import {
   FEW_SHOT_MESSAGES,
@@ -11,6 +15,7 @@ import {
   buildUserMessage,
   type ChatMessage,
 } from './prompt.js';
+import { buildDiagnosisToolkit } from './tools/index.js';
 
 // The orchestration: stored event → grounded, persisted Investigation. This is the single place the
 // prompt, the model call, cost accounting, and persistence come together. The `client` seam lets
@@ -26,6 +31,28 @@ function toDiagnosisJson(diagnosis: Diagnosis): Prisma.InputJsonValue {
 }
 
 /**
+ * Turn the tool calls made during the loop into the nested InvestigationMessage rows persisted with
+ * the Investigation. Each call becomes an `assistant` row carrying the requested call in `toolCalls`
+ * Json, followed by the `tool` row carrying the result it fed back — a faithful, replayable trace of
+ * the retrieval the diagnosis was grounded in (and the thread Phase-6 chat extends). One call per
+ * assistant row keeps every row self-contained: a valid assistant→tool pair on its own.
+ */
+function toInvestigationMessages(
+  toolCalls: PersistedToolCall[],
+): Prisma.InvestigationMessageCreateWithoutInvestigationInput[] {
+  return toolCalls.flatMap((call) => [
+    {
+      role: 'assistant',
+      content: '',
+      toolCalls: [
+        { id: call.id, name: call.name, arguments: call.arguments },
+      ] as Prisma.InputJsonValue,
+    },
+    { role: 'tool', content: call.result },
+  ]);
+}
+
+/**
  * Investigate one stored event and persist the resulting Investigation. Returns `null` when the
  * event does not exist (the route maps that to a 404); otherwise returns the created row.
  */
@@ -35,23 +62,35 @@ export async function investigateEvent(eventId: string, opts?: { client?: Diagno
     return null;
   }
 
-  // System prompt + the curated few-shot turns + the serialized event under investigation. The
-  // event row from `getEventById` satisfies `SerializableEvent` structurally (that's why the type is
-  // loose), so it feeds the same serializer the few-shots were built with.
+  // System prompt + the curated few-shot turns + the investigation request. diagnosis-v2 no longer
+  // inlines the event: the request names it, and the model retrieves the payload/history through the
+  // toolkit (bound to this event, below) before diagnosing.
   const messages: ChatMessage[] = [
     { role: 'system', content: SYSTEM_PROMPT },
     ...FEW_SHOT_MESSAGES,
-    { role: 'user', content: buildUserMessage(event) },
+    {
+      role: 'user',
+      content: buildUserMessage({
+        eventId: event.id,
+        source: event.source,
+        eventType: event.eventType,
+        attemptCount: event.attempts.length,
+      }),
+    },
   ];
 
+  // The toolkit is scoped to this event, so the retrieval tools can only read the event under
+  // investigation (see buildDiagnosisToolkit).
+  const toolkit = buildDiagnosisToolkit(event.id);
   const client = opts?.client ?? createOpenAIDiagnosisClient();
-  const { diagnosis, usage, model } = await client.runDiagnosis(messages);
+  const { diagnosis, usage, model, toolCalls } = await client.runDiagnosis(messages, toolkit);
 
   const costUsd = computeCostUsd(model, usage.promptTokens, usage.completionTokens);
 
-  // Persist the full diagnosis as Json and hoist the queryable fields to columns. `promptVersion`
+  // Persist the full diagnosis as Json and hoist the queryable fields to columns; nest the retrieval
+  // trace as InvestigationMessage rows (assistant tool-call + tool-result pairs). `promptVersion`
   // records which prompt produced it; `model`/token/cost fields are the accounting the CLAUDE.md
-  // rule requires on every LLM-produced Investigation.
+  // rule requires on every LLM-produced Investigation (now summed across every call in the loop).
   return prisma.investigation.create({
     data: {
       event: { connect: { id: event.id } },
@@ -63,6 +102,7 @@ export async function investigateEvent(eventId: string, opts?: { client?: Diagno
       promptTokens: usage.promptTokens,
       completionTokens: usage.completionTokens,
       costUsd,
+      messages: { create: toInvestigationMessages(toolCalls) },
     },
   });
 }

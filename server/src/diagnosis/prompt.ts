@@ -1,33 +1,63 @@
 import type { Diagnosis } from './diagnosis.schema.js';
 import {
-  formatValue,
-  serializeAttempts,
-  type SerializableEvent,
+  formatDeliveryHistoryBlock,
+  formatEventPayloadBlock,
   type SerializableAttempt,
+  type SerializableEnvelope,
+  type SerializableEvent,
 } from './serialize.js';
 
-// The versioned prompt + the event→prompt serializer. This is the whole "grounding" surface for
-// Phase 4: there are no retrieval tools yet (that's Phase 5), so the redacted event and its
-// delivery attempts are serialized straight into the user message, and the system prompt enforces
-// that every claim cite one of those fields. Bump PROMPT_VERSION on any wording change so the
-// version stored on each Investigation stays an honest record of what produced it.
+// The versioned prompt + the investigation-request builder. Phase 5 turns the Phase-4 "raw data
+// dump" into a retrieval task: the user message names only the event, and the model must pull the
+// payload and delivery history through tools before diagnosing. The system prompt still enforces the
+// grounding invariant — every claim cites a field returned by a tool — now pointed at tool results
+// instead of an inlined block. Bump PROMPT_VERSION on any wording change so the version stored on
+// each Investigation stays an honest record of what produced it.
 
 /** Stamped onto every Investigation so a diagnosis is traceable to the exact prompt that made it. */
-export const PROMPT_VERSION = 'diagnosis-v1';
+export const PROMPT_VERSION = 'diagnosis-v2';
 
-/** A chat message in the diagnosis request. PR2 maps these onto the OpenAI messages array. */
-export interface ChatMessage {
-  role: 'system' | 'user' | 'assistant';
-  content: string;
+/** A tool call the model made (or a few-shot demonstrates): which function, and its JSON arguments. */
+export interface ToolCall {
+  /** The provider-assigned call id; a `tool` message echoes it as `toolCallId` to pair the result. */
+  id: string;
+  /** The tool/function name, e.g. `get_delivery_history`. */
+  name: string;
+  /** The arguments as a JSON string, exactly as the model emits them (validated before execution). */
+  arguments: string;
 }
 
-// The event/attempt serializer and its structural types now live in ./serialize.ts so the Phase-5
+/**
+ * A chat message in the diagnosis request. A discriminated union over the OpenAI roles so the
+ * tool-calling loop is type-checked end to end: an `assistant` turn may carry `toolCalls`, and a
+ * `tool` turn carries the result paired to a call by `toolCallId`. `openai.ts` maps these onto the
+ * OpenAI messages array.
+ */
+export type ChatMessage =
+  | { role: 'system' | 'user'; content: string }
+  | { role: 'assistant'; content: string | null; toolCalls?: ToolCall[] }
+  | { role: 'tool'; toolCallId: string; content: string };
+
+// The event/attempt serializer and its structural types live in ./serialize.ts so the Phase-5
 // retrieval tools emit byte-identical field paths. Re-exported here because callers (and the prompt
 // tests) have long imported the types from this module.
 export type { SerializableEvent, SerializableAttempt };
 
 export const SYSTEM_PROMPT = `You are the Webhook Failure Investigator. You diagnose why a single
-webhook delivery failed, using ONLY the delivery logs provided in the user message.
+webhook delivery failed, using ONLY the delivery logs you retrieve through the provided tools.
+
+RETRIEVAL (how you get the logs):
+- The user message names the event under investigation (eventId, source, eventType, attempt count)
+  but contains no log data. You MUST retrieve the data before you diagnose:
+  - get_event_payload(eventId): the event envelope — source, eventType, payload, headers.
+  - get_delivery_history(eventId): every delivery attempt, oldest-first, with citable
+    attempts[i].field paths.
+  - fetch_api_docs(provider, query): reference docs for a provider's webhook behavior (signature
+    verification, auth, rate limits, payload shape). Call it only when provider behavior is in doubt.
+- Always call get_event_payload AND get_delivery_history for the event before answering. Pass the
+  exact eventId from the user message; the tools are scoped to that event.
+- When a tool returns no usable data (an unknown event, 0 attempts, "(absent)" fields), treat that
+  thinness as evidence — it is not a license to guess.
 
 Classify the failure into exactly one of these categories:
 - authentication: the receiver rejected the credentials/signature (e.g. 401/403, WWW-Authenticate,
@@ -47,12 +77,15 @@ Classify the failure into exactly one of these categories:
 - insufficient_evidence: the logs are too thin or ambiguous to ground any of the above.
 
 GROUNDING RULE (the core invariant — never break it):
-- Every claim in rootCause and every item in evidence MUST cite a field from the logs below. Cite it
-  by its field path: either a labeled line (e.g. attempts[0].responseStatus) or an index into the
-  JSON value shown on such a line (e.g. attempts[0].responseBody.error.code,
+- Every claim in rootCause and every item in evidence MUST cite a field from the delivery logs the
+  tools returned. Cite it by its field path: either a labeled line (e.g. attempts[0].responseStatus)
+  or an index into the JSON value shown on such a line (e.g. attempts[0].responseBody.error.code,
   attempts[0].responseHeaders["www-authenticate"]).
-- Never invent a status code, header, body value, or field that is not in the logs; never cite a
-  value that does not appear in the serialized logs.
+- Never invent a status code, header, body value, or field that no tool returned; never cite a value
+  that does not appear in a tool result.
+- API reference docs from fetch_api_docs are background material. They may inform rootCause and
+  remediationSteps, but they are NOT delivery-log evidence: never cite doc text in evidence[].
+  evidence[] cites only fields returned by get_event_payload / get_delivery_history.
 - When a field is absent, you may cite its documented absence by giving its path the value
   "(absent)" — that is how you ground an insufficient_evidence verdict.
 - If the logs do not contain enough grounded signal to distinguish the categories — for example a
@@ -73,70 +106,84 @@ REMEDIATION:
 - Give concrete, actionable steps tied to the grounded cause. For insufficient_evidence, recommend
   what additional log detail would make the failure diagnosable.
 
-The event's secrets are already redacted to "[REDACTED]" before they reach you. Treat a [REDACTED]
-value as present-but-hidden; never treat redaction itself as the failure cause.`;
+The event's secrets are already redacted to "[REDACTED]" before any tool returns them. Treat a
+[REDACTED] value as present-but-hidden; never treat redaction itself as the failure cause.`;
 
-/**
- * Serialize the redacted event + its delivery attempts into a stable, token-lean text block. Every
- * line is labeled with the exact field path the model should cite, so `evidence[].field` references
- * are grounded and mechanically checkable. Absent response fields are rendered as `(absent)` rather
- * than dropped, because their absence is itself diagnostic (it's the insufficient_evidence signal).
- */
-export function buildUserMessage(event: SerializableEvent): string {
-  const lines: string[] = [
-    'WEBHOOK EVENT UNDER INVESTIGATION',
-    'Cite evidence using the exact field paths shown below (e.g. attempts[0].responseStatus).',
-    '',
-    `source: ${formatValue(event.source)}`,
-    `eventType: ${formatValue(event.eventType)}`,
-    `payload: ${formatValue(event.payload)}`,
-    `headers: ${formatValue(event.headers)}`,
-    '',
-    `attempts: ${event.attempts.length} delivery attempt(s)`,
-    ...serializeAttempts(event.attempts),
-  ];
-
-  return lines.join('\n');
+/** The minimal set of facts the investigation-request user message names (the model retrieves the rest). */
+export interface InvestigationRequest {
+  eventId: string;
+  source: string;
+  eventType: string;
+  attemptCount: number;
 }
 
-// Few-shot examples. These are illustrative, not exhaustive — the full taxonomy lives in
-// SYSTEM_PROMPT; keeping the few-shot set small is deliberate cost discipline (every example rides
-// in the prompt on every call). The chosen three teach the two edges of the grounding rule: a
-// confidently grounded auth failure, a grounded payload-validation failure, and the refuse-to-guess
-// insufficient_evidence case. Each user message is built through the real serializer so few-shot
-// formatting is identical to production; each assistant diagnosis is typed `Diagnosis`, so the
+/**
+ * Build the investigation-request user message: it names the event and instructs retrieval, but
+ * carries no log data — the model must pull the payload and delivery history through the tools
+ * (diagnosis-v2). This is the retrieval-first inversion of the Phase-4 inlined block; grounding now
+ * happens against tool results, which the system prompt enforces.
+ */
+export function buildUserMessage(request: InvestigationRequest): string {
+  return [
+    'WEBHOOK DELIVERY UNDER INVESTIGATION',
+    `eventId: ${request.eventId}`,
+    `source: ${request.source}`,
+    `eventType: ${request.eventType}`,
+    `attempts recorded: ${request.attemptCount}`,
+    '',
+    'Retrieve the delivery logs before diagnosing: call get_event_payload and get_delivery_history',
+    'for this eventId (and fetch_api_docs when provider behavior is in question), then ground every',
+    'claim in the fields those tools return.',
+  ].join('\n');
+}
+
+// Few-shot examples, reworked into tool-calling form for diagnosis-v2. The set is deliberately small
+// (every example rides in the prompt on every call) and teaches the two edges of the grounding rule:
+// a confidently grounded auth failure, and the refuse-to-guess insufficient_evidence case. Each
+// example is a full retrieval trajectory — request → get_event_payload → get_delivery_history →
+// grounded diagnosis — with the tool results rendered through the SAME serializer the live tools use,
+// so the demonstrated format is identical to production. Each diagnosis is typed `Diagnosis`, so the
 // compiler guarantees it satisfies the structured-output contract.
 interface FewShotExample {
-  event: SerializableEvent;
+  eventId: string;
+  source: string;
+  eventType: string;
+  /** The already-redacted envelope the `get_event_payload` result renders from. */
+  envelope: SerializableEnvelope;
+  /** The already-redacted attempts the `get_delivery_history` result renders from. */
+  attempts: SerializableAttempt[];
   diagnosis: Diagnosis;
 }
 
 const FEW_SHOT_EXAMPLES: FewShotExample[] = [
   {
-    event: {
+    eventId: 'evt_example_auth_401',
+    source: 'stripe',
+    eventType: 'invoice.payment_failed',
+    envelope: {
       source: 'stripe',
       eventType: 'invoice.payment_failed',
       payload: { id: 'evt_1Pf2A', type: 'invoice.payment_failed' },
       headers: { 'stripe-signature': '[REDACTED]', 'content-type': 'application/json' },
-      attempts: [
-        {
-          requestUrl: 'https://hooks.example-app.com/webhooks/stripe',
-          requestMethod: 'POST',
-          requestHeaders: { authorization: '[REDACTED]', 'stripe-signature': '[REDACTED]' },
-          requestBody: { id: 'evt_1Pf2A', type: 'invoice.payment_failed' },
-          responseStatus: 401,
-          responseHeaders: { 'www-authenticate': 'Bearer realm="api", error="invalid_token"' },
-          responseBody: {
-            error: {
-              type: 'invalid_request_error',
-              code: 'api_key_expired',
-              message: 'Expired API key provided.',
-            },
-          },
-          latencyMs: 118,
-        },
-      ],
     },
+    attempts: [
+      {
+        requestUrl: 'https://hooks.example-app.com/webhooks/stripe',
+        requestMethod: 'POST',
+        requestHeaders: { authorization: '[REDACTED]', 'stripe-signature': '[REDACTED]' },
+        requestBody: { id: 'evt_1Pf2A', type: 'invoice.payment_failed' },
+        responseStatus: 401,
+        responseHeaders: { 'www-authenticate': 'Bearer realm="api", error="invalid_token"' },
+        responseBody: {
+          error: {
+            type: 'invalid_request_error',
+            code: 'api_key_expired',
+            message: 'Expired API key provided.',
+          },
+        },
+        latencyMs: 118,
+      },
+    ],
     diagnosis: {
       failureCategory: 'authentication',
       rootCause:
@@ -168,74 +215,24 @@ const FEW_SHOT_EXAMPLES: FewShotExample[] = [
     },
   },
   {
-    event: {
-      source: 'slack',
-      eventType: 'event_callback',
-      payload: { token: '[REDACTED]', team_id: 'T024BE7LD', type: 'event_callback' },
-      headers: { 'x-slack-signature': '[REDACTED]', 'content-type': 'application/json' },
-      attempts: [
-        {
-          requestUrl: 'https://hooks.example-app.com/webhooks/slack',
-          requestMethod: 'POST',
-          requestHeaders: { 'x-slack-signature': '[REDACTED]', 'content-type': 'application/json' },
-          requestBody: { team_id: 'T024BE7LD', type: 'event_callback' },
-          responseStatus: 400,
-          responseHeaders: { 'content-type': 'application/json' },
-          responseBody: {
-            ok: false,
-            error: 'invalid_payload',
-            detail: 'missing required field: event',
-          },
-          latencyMs: 41,
-        },
-      ],
-    },
-    diagnosis: {
-      failureCategory: 'payload_validation',
-      rootCause:
-        'The receiver reached its handler and rejected the request with HTTP 400 because the payload was missing a required field — the response body reports invalid_payload and names the missing "event" field.',
-      confidence: 0.93,
-      evidence: [
-        {
-          field: 'attempts[0].responseStatus',
-          value: '400',
-          note: 'Bad Request — the body was rejected, not the credentials.',
-        },
-        {
-          field: 'attempts[0].responseBody.error',
-          value: 'invalid_payload',
-          note: 'The receiver classifies this as a payload problem.',
-        },
-        {
-          field: 'attempts[0].responseBody.detail',
-          value: 'missing required field: event',
-          note: 'Names the exact missing field.',
-        },
-      ],
-      remediationSteps: [
-        'Include the required "event" field in the webhook payload before sending.',
-        "Validate the payload against the receiver's expected schema in the sender.",
-      ],
-      reachabilityAssessment: 'reachable',
-      isSpeculative: false,
-    },
-  },
-  {
-    event: {
+    eventId: 'evt_example_insufficient',
+    source: 'stripe',
+    eventType: 'customer.updated',
+    envelope: {
       source: 'stripe',
       eventType: 'customer.updated',
       payload: { id: 'evt_1Pg7Q', type: 'customer.updated' },
       headers: { 'stripe-signature': '[REDACTED]', 'content-type': 'application/json' },
-      attempts: [
-        {
-          requestUrl: 'https://hooks.example-app.com/webhooks/stripe',
-          requestMethod: 'POST',
-          requestHeaders: { 'stripe-signature': '[REDACTED]', 'content-type': 'application/json' },
-          requestBody: { id: 'evt_1Pg7Q', type: 'customer.updated' },
-          errorText: 'socket hang up',
-        },
-      ],
     },
+    attempts: [
+      {
+        requestUrl: 'https://hooks.example-app.com/webhooks/stripe',
+        requestMethod: 'POST',
+        requestHeaders: { 'stripe-signature': '[REDACTED]', 'content-type': 'application/json' },
+        requestBody: { id: 'evt_1Pg7Q', type: 'customer.updated' },
+        errorText: 'socket hang up',
+      },
+    ],
     diagnosis: {
       failureCategory: 'insufficient_evidence',
       rootCause:
@@ -264,10 +261,49 @@ const FEW_SHOT_EXAMPLES: FewShotExample[] = [
 ];
 
 /**
- * The few-shot turns to inject between the system prompt and the real event, in order. Each example
- * becomes a user message (the serialized event) followed by the assistant's grounded diagnosis JSON.
+ * The few-shot turns to inject between the system prompt and the real request, in order. Each
+ * example expands into a full retrieval trajectory: the investigation request, an assistant
+ * get_event_payload call and its tool result, an assistant get_delivery_history call and its tool
+ * result, then the grounded diagnosis. Tool results are built through the live serializer so the
+ * demonstrated format matches what the tools actually return at inference time.
  */
-export const FEW_SHOT_MESSAGES: ChatMessage[] = FEW_SHOT_EXAMPLES.flatMap((example) => [
-  { role: 'user', content: buildUserMessage(example.event) },
-  { role: 'assistant', content: JSON.stringify(example.diagnosis) },
-]);
+export const FEW_SHOT_MESSAGES: ChatMessage[] = FEW_SHOT_EXAMPLES.flatMap(
+  (example): ChatMessage[] => {
+    const argumentsJson = JSON.stringify({ eventId: example.eventId });
+    const payloadCallId = `call_${example.eventId}_payload`;
+    const historyCallId = `call_${example.eventId}_history`;
+
+    return [
+      {
+        role: 'user',
+        content: buildUserMessage({
+          eventId: example.eventId,
+          source: example.source,
+          eventType: example.eventType,
+          attemptCount: example.attempts.length,
+        }),
+      },
+      {
+        role: 'assistant',
+        content: null,
+        toolCalls: [{ id: payloadCallId, name: 'get_event_payload', arguments: argumentsJson }],
+      },
+      {
+        role: 'tool',
+        toolCallId: payloadCallId,
+        content: formatEventPayloadBlock(example.envelope),
+      },
+      {
+        role: 'assistant',
+        content: null,
+        toolCalls: [{ id: historyCallId, name: 'get_delivery_history', arguments: argumentsJson }],
+      },
+      {
+        role: 'tool',
+        toolCallId: historyCallId,
+        content: formatDeliveryHistoryBlock(example.attempts),
+      },
+      { role: 'assistant', content: JSON.stringify(example.diagnosis) },
+    ];
+  },
+);
