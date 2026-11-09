@@ -3,6 +3,7 @@ import { prisma } from '../db/client.js';
 import { seedScenarios } from '../ingest/seed.js';
 import { DiagnosisSchema } from './diagnosis.schema.js';
 import { investigateEvent } from './diagnosis.service.js';
+import { hasOpenAIKey } from './openai-test-gate.js';
 
 // A single REAL OpenAI call, gated on OPENAI_API_KEY so CI (which has no key) skips it and stays
 // green and free — mirroring the "int tests need DATABASE_URL" convention. Run locally with both
@@ -10,14 +11,7 @@ import { investigateEvent } from './diagnosis.service.js';
 // against the live model. It's also the empirical proof that the configured OPENAI_MODEL actually
 // supports the Structured Outputs response format we send — an unsupported model fails this call.
 
-// The `.env.example` placeholder counts as "no key": config/env loads .env into process.env, so a
-// developer who copied the example but never pasted a real key must still get a clean skip — not a
-// real call that fails on a bogus credential.
-const PLACEHOLDER_KEY = 'sk-your-key-here';
-const key = process.env.OPENAI_API_KEY;
-const hasKey = key != null && key !== '' && key !== PLACEHOLDER_KEY;
-
-describe.skipIf(!hasKey)('investigateEvent (live OpenAI)', () => {
+describe.skipIf(!hasOpenAIKey())('investigateEvent (live OpenAI)', () => {
   beforeAll(async () => {
     await prisma.investigation.deleteMany();
     await seedScenarios();

@@ -37,6 +37,13 @@ Stop Postgres with `docker compose down` (add `-v` to also drop the data volume)
 >
 > Seeded events use stable `seed_*` ids (e.g. `GET /events/seed_stripe_auth_401`); re-running `db:seed` refreshes them without touching live-captured events.
 
+> Investigate a stored event (requires `OPENAI_API_KEY` in `.env` — this makes a real, billed model call):
+>
+> ```sh
+> curl -XPOST localhost:3000/events/seed_stripe_auth_401/investigate   # → 201 with a grounded diagnosis
+> curl localhost:3000/events/seed_stripe_auth_401/investigations        # prior runs, newest-first
+> ```
+
 ## Commands
 
 | Task      | Command          |

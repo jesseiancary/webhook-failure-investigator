@@ -117,26 +117,26 @@ Phased, actionable build plan. Each phase is a shippable increment; check items 
 
 ### Structured output
 
-- [ ] Define the Zod diagnosis schema (shared with API validation).
-- [ ] Wire OpenAI Structured Outputs via `zodResponseFormat`.
-- [ ] Map the model output into the `Investigation` record.
+- [x] Define the Zod diagnosis schema (shared with API validation).
+- [x] Wire OpenAI Structured Outputs via `zodResponseFormat`.
+- [x] Map the model output into the `Investigation` record.
 
 ### Prompting
 
-- [ ] Author a versioned system prompt encoding the failure taxonomy.
-- [ ] Add few-shot examples covering each category.
-- [ ] Store the prompt version on each `Investigation`.
+- [x] Author a versioned system prompt encoding the failure taxonomy.
+- [x] Add a curated few-shot set (authentication, payload_validation, insufficient_evidence) teaching both edges of the grounding rule — deliberately not one-per-category, for cost discipline.
+- [x] Store the prompt version on each `Investigation`.
 
 ### Endpoint & accounting
 
-- [ ] `POST /events/:id/investigate` runs a diagnosis and persists it.
-- [ ] Record `promptTokens`, `completionTokens`, `costUsd`, and `model` per run.
+- [x] `POST /events/:id/investigate` runs a diagnosis and persists it.
+- [x] Record `promptTokens`, `completionTokens`, `costUsd`, and `model` per run.
 
 ### Verification
 
-- [ ] Every response validates against the Zod schema (unit test).
-- [ ] Seeded 401 scenario classifies as `authentication` with correct remediation.
-- [ ] Token/cost fields are populated and plausible.
+- [x] Every response validates against the Zod schema (unit test).
+- [x] Seeded 401 scenario classifies as `authentication` with correct remediation.
+- [x] Token/cost fields are populated and plausible.
 
 ---
 
@@ -201,6 +201,7 @@ Phased, actionable build plan. Each phase is a shippable increment; check items 
 - [ ] Investigation detail: diagnosis, confidence badge, evidence citations, remediation checklist, retry-by-event-id affordance.
 - [ ] Streaming chat panel on the investigation detail page.
 - [ ] Scenario submission form (manual event entry).
+- [ ] Give `GET /events/:id/investigations` a summary projection (drop the full `diagnosis` Json blob, mirroring `listEvents`) once the history view's field needs are known — it currently returns full rows.
 
 ### Polish
 

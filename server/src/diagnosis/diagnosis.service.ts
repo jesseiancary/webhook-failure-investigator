@@ -66,3 +66,17 @@ export async function investigateEvent(eventId: string, opts?: { client?: Diagno
     },
   });
 }
+
+/**
+ * List prior investigations for one event, newest-first. An event can be investigated more than once
+ * (re-runs after a prompt/model change), so the Phase 7 UI shows the history. Returns `null` when the
+ * event itself doesn't exist (the route maps that to a 404, distinct from an existing event with no
+ * runs, which returns `[]`).
+ */
+export async function listInvestigations(eventId: string) {
+  const event = await prisma.webhookEvent.findUnique({
+    where: { id: eventId },
+    include: { investigations: { orderBy: { createdAt: 'desc' } } },
+  });
+  return event === null ? null : event.investigations;
+}
