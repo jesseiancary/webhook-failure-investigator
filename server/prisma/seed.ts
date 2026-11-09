@@ -2,11 +2,14 @@
 // loader and the scenario library live under src/ (typechecked + unit-tested); this file just runs
 // it and manages the process lifecycle. Kept here by Prisma convention (package.json `prisma.seed`).
 import { prisma } from '../src/db/client.js';
-import { seedScenarios } from '../src/ingest/seed.js';
+import { seedApiDocs, seedScenarios } from '../src/ingest/seed.js';
 
 async function main(): Promise<void> {
-  const { created } = await seedScenarios();
-  console.log(`db:seed — seeded ${created} labeled scenario(s).`);
+  const { created: scenarios } = await seedScenarios();
+  const { created: docs } = await seedApiDocs();
+  console.log(
+    `db:seed — seeded ${scenarios} labeled scenario(s) and ${docs} API reference doc(s).`,
+  );
 }
 
 main()
