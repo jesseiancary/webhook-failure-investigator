@@ -7,8 +7,8 @@ import { investigateEvent } from './diagnosis.service.js';
 // A single REAL OpenAI call, gated on OPENAI_API_KEY so CI (which has no key) skips it and stays
 // green and free — mirroring the "int tests need DATABASE_URL" convention. Run locally with both
 // DATABASE_URL and a real OPENAI_API_KEY set to verify end-to-end classification and grounding
-// against the live model. This is also the empirical guard for Phase 4 finding #1: if
-// gpt-4o-2024-08-06 ever rejected the confidence `minimum`/`maximum` keywords, the parse would throw.
+// against the live model. It's also the empirical proof that the configured OPENAI_MODEL actually
+// supports the Structured Outputs response format we send — an unsupported model fails this call.
 
 // The `.env.example` placeholder counts as "no key": config/env loads .env into process.env, so a
 // developer who copied the example but never pasted a real key must still get a clean skip — not a

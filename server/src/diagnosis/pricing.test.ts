@@ -20,6 +20,12 @@ describe('computeCostUsd', () => {
     expect(cost.equals(new Prisma.Decimal('0.0086025'))).toBe(true);
   });
 
+  it('prices the gpt-6-luna default from its own rates', () => {
+    // Current default tier: 1M input @ $0.10 + 1M output @ $0.50 = $0.60 exactly.
+    const cost = computeCostUsd('gpt-6-luna', 1_000_000, 1_000_000);
+    expect(cost.equals(new Prisma.Decimal('0.6'))).toBe(true);
+  });
+
   it('prices the gpt-4o-mini tier from its own rates', () => {
     // Verifies the second table entry (the Phase 6 cheaper tier) isn't a stale/typo'd rate:
     // 1M input @ $0.15 + 1M output @ $0.60 = $0.75 exactly.

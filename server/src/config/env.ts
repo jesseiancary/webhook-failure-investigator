@@ -38,7 +38,7 @@ export const env = {
     return required('OPENAI_API_KEY');
   },
   get OPENAI_MODEL(): string {
-    // Pinned snapshot with full Structured Outputs support; overridable for a cheaper/newer tier.
-    return process.env.OPENAI_MODEL ?? 'gpt-4o-2024-08-06';
+    // Current-generation model with Structured Outputs support; overridable for a different tier.
+    return process.env.OPENAI_MODEL ?? 'gpt-6-luna';
   },
 };

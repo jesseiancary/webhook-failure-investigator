@@ -17,6 +17,10 @@ const TOKENS_PER_MILLION = 1_000_000;
 
 /** Known model list prices. Unknown models fall back to 0 (see computeCostUsd). */
 const MODEL_PRICING: Record<string, ModelPrice> = {
+  // Current default (see config/env.ts). OpenAI's named replacement for gpt-4o-2024-08-06.
+  'gpt-6-luna': { inputPerMillion: 0.1, outputPerMillion: 0.5 },
+  // Deprecated — retires 2027-01-14; kept for the overlap and for any Investigation rows that
+  // recorded it as the model before the default moved to gpt-6-luna.
   'gpt-4o-2024-08-06': { inputPerMillion: 2.5, outputPerMillion: 10 },
   'gpt-4o-mini-2024-07-18': { inputPerMillion: 0.15, outputPerMillion: 0.6 },
 };
