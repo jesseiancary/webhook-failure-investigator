@@ -22,6 +22,8 @@ patterns=(
 mapfile -t files < <(git ls-files -- \
   'server/src/ingest/scenarios' \
   ':(exclude)server/src/ingest/scenarios/*.test.ts' \
+  'server/src/ingest/api-docs' \
+  ':(exclude)server/src/ingest/api-docs/*.test.ts' \
   'server/src/diagnosis' \
   ':(exclude)server/src/diagnosis/*.test.ts' \
   'server/src/ingest/seed.ts' \

@@ -1,4 +1,10 @@
 import type { Diagnosis } from './diagnosis.schema.js';
+import {
+  formatValue,
+  serializeAttempts,
+  type SerializableEvent,
+  type SerializableAttempt,
+} from './serialize.js';
 
 // The versioned prompt + the event→prompt serializer. This is the whole "grounding" surface for
 // Phase 4: there are no retrieval tools yet (that's Phase 5), so the redacted event and its
@@ -15,29 +21,10 @@ export interface ChatMessage {
   content: string;
 }
 
-// A structural view of the redacted event the serializer needs. Deliberately looser than the
-// Prisma row (optional, `| null`) so the `getEventById` result assigns directly AND hand-authored
-// few-shot fixtures below are accepted without ceremony.
-export interface SerializableAttempt {
-  requestUrl: string;
-  requestMethod: string;
-  requestHeaders: unknown;
-  requestBody?: unknown;
-  responseStatus?: number | null;
-  responseHeaders?: unknown;
-  responseBody?: unknown;
-  latencyMs?: number | null;
-  errorText?: string | null;
-  attemptedAt?: Date | string | null;
-}
-
-export interface SerializableEvent {
-  source: string;
-  eventType: string;
-  payload: unknown;
-  headers: unknown;
-  attempts: SerializableAttempt[];
-}
+// The event/attempt serializer and its structural types now live in ./serialize.ts so the Phase-5
+// retrieval tools emit byte-identical field paths. Re-exported here because callers (and the prompt
+// tests) have long imported the types from this module.
+export type { SerializableEvent, SerializableAttempt };
 
 export const SYSTEM_PROMPT = `You are the Webhook Failure Investigator. You diagnose why a single
 webhook delivery failed, using ONLY the delivery logs provided in the user message.
@@ -106,34 +93,10 @@ export function buildUserMessage(event: SerializableEvent): string {
     `headers: ${formatValue(event.headers)}`,
     '',
     `attempts: ${event.attempts.length} delivery attempt(s)`,
+    ...serializeAttempts(event.attempts),
   ];
 
-  event.attempts.forEach((attempt, i) => {
-    const p = `attempts[${i}]`;
-    lines.push(
-      '',
-      `${p}.attemptedAt: ${formatValue(attempt.attemptedAt)}`,
-      `${p}.requestMethod: ${formatValue(attempt.requestMethod)}`,
-      `${p}.requestUrl: ${formatValue(attempt.requestUrl)}`,
-      `${p}.requestHeaders: ${formatValue(attempt.requestHeaders)}`,
-      `${p}.requestBody: ${formatValue(attempt.requestBody)}`,
-      `${p}.responseStatus: ${formatValue(attempt.responseStatus)}`,
-      `${p}.responseHeaders: ${formatValue(attempt.responseHeaders)}`,
-      `${p}.responseBody: ${formatValue(attempt.responseBody)}`,
-      `${p}.latencyMs: ${formatValue(attempt.latencyMs)}`,
-      `${p}.errorText: ${formatValue(attempt.errorText)}`,
-    );
-  });
-
   return lines.join('\n');
-}
-
-/** Render a log value for the prompt: `(absent)` for null/undefined, raw for strings, compact JSON otherwise. */
-function formatValue(value: unknown): string {
-  if (value === undefined || value === null) return '(absent)';
-  if (typeof value === 'string') return value;
-  if (value instanceof Date) return value.toISOString();
-  return JSON.stringify(value);
 }
 
 // Few-shot examples. These are illustrative, not exhaustive — the full taxonomy lives in
