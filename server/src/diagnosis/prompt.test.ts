@@ -5,96 +5,93 @@ import {
   PROMPT_VERSION,
   SYSTEM_PROMPT,
   buildUserMessage,
-  type SerializableEvent,
+  type InvestigationRequest,
 } from './prompt.js';
 
-const event: SerializableEvent = {
+const request: InvestigationRequest = {
+  eventId: 'evt_abc123',
   source: 'stripe',
   eventType: 'invoice.payment_failed',
-  payload: { id: 'evt_1Pf2A', type: 'invoice.payment_failed' },
-  headers: { authorization: '[REDACTED]', 'content-type': 'application/json' },
-  attempts: [
-    {
-      attemptedAt: new Date('2026-11-08T02:00:00.000Z'),
-      requestUrl: 'https://hooks.example-app.com/webhooks/stripe',
-      requestMethod: 'POST',
-      requestHeaders: { authorization: '[REDACTED]' },
-      requestBody: { id: 'evt_1Pf2A' },
-      responseStatus: 401,
-      responseHeaders: { 'www-authenticate': 'Bearer realm="api"' },
-      responseBody: { error: { code: 'api_key_expired' } },
-      latencyMs: 118,
-    },
-  ],
+  attemptCount: 2,
 };
 
 describe('buildUserMessage', () => {
-  it('labels fields with the exact citable paths', () => {
-    const message = buildUserMessage(event);
-    expect(message).toContain('attempts[0].responseStatus: 401');
-    expect(message).toContain('attempts[0].responseHeaders:');
-    expect(message).toContain('attempts[0].responseBody:');
+  it('names the event under investigation', () => {
+    const message = buildUserMessage(request);
+    expect(message).toContain('eventId: evt_abc123');
     expect(message).toContain('source: stripe');
+    expect(message).toContain('eventType: invoice.payment_failed');
+    expect(message).toContain('attempts recorded: 2');
   });
 
-  it('renders a Date attemptedAt as an ISO-8601 string', () => {
-    expect(buildUserMessage(event)).toContain('attempts[0].attemptedAt: 2026-11-08T02:00:00.000Z');
+  it('instructs the model to retrieve logs through the tools before diagnosing (diagnosis-v2)', () => {
+    const message = buildUserMessage(request);
+    expect(message).toContain('get_event_payload');
+    expect(message).toContain('get_delivery_history');
   });
 
-  it('keeps redacted values redacted and never leaks a raw secret', () => {
-    const message = buildUserMessage(event);
-    expect(message).toContain('[REDACTED]');
-    // The serializer must not un-redact — it only ever sees already-redacted data.
-    expect(message).not.toContain('Bearer sk-');
-  });
-
-  it('renders absent response fields explicitly (the insufficient-evidence signal)', () => {
-    const dropped: SerializableEvent = {
-      ...event,
-      attempts: [
-        {
-          requestUrl: 'https://hooks.example-app.com/webhooks/stripe',
-          requestMethod: 'POST',
-          requestHeaders: {},
-          errorText: 'socket hang up',
-        },
-      ],
-    };
-    const message = buildUserMessage(dropped);
-    expect(message).toContain('attempts[0].responseStatus: (absent)');
-    expect(message).toContain('attempts[0].attemptedAt: (absent)');
-    expect(message).toContain('attempts[0].errorText: socket hang up');
+  it('carries no log data — retrieval is the model’s job now', () => {
+    // The request is a reference, not a dump: no serialized attempt field paths ride in it.
+    expect(buildUserMessage(request)).not.toContain('attempts[0].responseStatus');
   });
 
   it('is deterministic for the same input', () => {
-    expect(buildUserMessage(event)).toEqual(buildUserMessage(event));
+    expect(buildUserMessage(request)).toEqual(buildUserMessage(request));
   });
 });
 
 describe('prompt metadata', () => {
   it('pins a stable prompt version', () => {
-    expect(PROMPT_VERSION).toBe('diagnosis-v1');
+    expect(PROMPT_VERSION).toBe('diagnosis-v2');
   });
 
-  it('encodes the grounding rule and taxonomy edges in the system prompt', () => {
+  it('encodes the grounding rule, taxonomy edges, and retrieval contract in the system prompt', () => {
     expect(SYSTEM_PROMPT).toContain('insufficient_evidence');
     expect(SYSTEM_PROMPT).toContain('GROUNDING RULE');
+    expect(SYSTEM_PROMPT).toContain('RETRIEVAL');
+    expect(SYSTEM_PROMPT).toContain('get_event_payload');
+    expect(SYSTEM_PROMPT).toContain('get_delivery_history');
   });
 });
 
 describe('FEW_SHOT_MESSAGES', () => {
-  it('alternates user → assistant turns', () => {
-    expect(FEW_SHOT_MESSAGES.length).toBeGreaterThan(0);
-    FEW_SHOT_MESSAGES.forEach((message, i) => {
-      expect(message.role).toBe(i % 2 === 0 ? 'user' : 'assistant');
-    });
+  it('opens each trajectory with the investigation request', () => {
+    expect(FEW_SHOT_MESSAGES[0]?.role).toBe('user');
   });
 
-  it('every assistant turn is a diagnosis valid against DiagnosisSchema', () => {
-    const assistantTurns = FEW_SHOT_MESSAGES.filter((m) => m.role === 'assistant');
-    expect(assistantTurns.length).toBeGreaterThan(0);
-    for (const turn of assistantTurns) {
-      expect(DiagnosisSchema.safeParse(JSON.parse(turn.content)).success).toBe(true);
+  it('demonstrates the retrieval tools before answering', () => {
+    const toolNames = FEW_SHOT_MESSAGES.filter((m) => m.role === 'assistant').flatMap((m) =>
+      m.role === 'assistant' ? (m.toolCalls ?? []).map((c) => c.name) : [],
+    );
+    expect(toolNames).toContain('get_event_payload');
+    expect(toolNames).toContain('get_delivery_history');
+  });
+
+  it('pairs every tool result to a tool call the assistant actually made', () => {
+    const callIds = new Set(
+      FEW_SHOT_MESSAGES.flatMap((m) =>
+        m.role === 'assistant' ? (m.toolCalls ?? []).map((c) => c.id) : [],
+      ),
+    );
+    const toolTurns = FEW_SHOT_MESSAGES.filter((m) => m.role === 'tool');
+    expect(toolTurns.length).toBeGreaterThan(0);
+    for (const turn of toolTurns) {
+      // Narrow to the tool variant for toolCallId.
+      if (turn.role === 'tool') expect(callIds.has(turn.toolCallId)).toBe(true);
+    }
+  });
+
+  it('every natural-language assistant turn is a diagnosis valid against DiagnosisSchema', () => {
+    // The final assistant turn of each trajectory carries the diagnosis as JSON string content;
+    // the tool-call turns carry null content, so filtering on string content isolates the answers.
+    const answers = FEW_SHOT_MESSAGES.filter(
+      (m) => m.role === 'assistant' && typeof m.content === 'string',
+    );
+    expect(answers.length).toBeGreaterThan(0);
+    for (const turn of answers) {
+      if (turn.role === 'assistant' && typeof turn.content === 'string') {
+        expect(DiagnosisSchema.safeParse(JSON.parse(turn.content)).success).toBe(true);
+      }
     }
   });
 });

@@ -35,6 +35,7 @@ vi.mock('./openai.js', () => ({
         diagnosis: cannedDiagnosis,
         usage: { promptTokens: 1200, completionTokens: 300 },
         model: 'gpt-4o-2024-08-06',
+        toolCalls: [],
       };
     },
   }),

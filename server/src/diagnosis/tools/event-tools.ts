@@ -1,7 +1,11 @@
 import type { DeliveryAttempt } from '@prisma/client';
 import { prisma } from '../../db/client.js';
 import { redactHeaders, redactJson, type HeaderMap } from '../../ingest/redact.js';
-import { formatValue, serializeAttempts, type SerializableAttempt } from '../serialize.js';
+import {
+  formatDeliveryHistoryBlock,
+  formatEventPayloadBlock,
+  type SerializableAttempt,
+} from '../serialize.js';
 
 // The event-scoped retrieval tools the model calls instead of receiving a raw data dump:
 // `get_event_payload(eventId)` → the event envelope (source/type/payload/headers),
@@ -55,15 +59,12 @@ export async function getEventPayload(eventId: string): Promise<string> {
     return `No event found with id "${eventId}".`;
   }
 
-  return [
-    'EVENT PAYLOAD',
-    'Cite evidence using the exact field paths shown below (e.g. payload.id, headers["content-type"]).',
-    '',
-    `source: ${formatValue(event.source)}`,
-    `eventType: ${formatValue(event.eventType)}`,
-    `payload: ${formatValue(redactBodyView(event.payload))}`,
-    `headers: ${formatValue(redactHeadersView(event.headers))}`,
-  ].join('\n');
+  return formatEventPayloadBlock({
+    source: event.source,
+    eventType: event.eventType,
+    payload: redactBodyView(event.payload),
+    headers: redactHeadersView(event.headers),
+  });
 }
 
 /**
@@ -78,9 +79,5 @@ export async function getDeliveryHistory(eventId: string): Promise<string> {
     orderBy: { attemptedAt: 'asc' },
   });
 
-  return [
-    `DELIVERY HISTORY — ${attempts.length} attempt(s)`,
-    'Cite evidence using the exact field paths shown below (e.g. attempts[0].responseStatus).',
-    ...serializeAttempts(attempts.map(redactAttempt)),
-  ].join('\n');
+  return formatDeliveryHistoryBlock(attempts.map(redactAttempt));
 }

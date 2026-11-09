@@ -75,7 +75,7 @@ Phased, actionable build plan. Each phase is a shippable increment; check items 
 ### Verification
 
 - [x] `docker-compose up` starts Postgres; the app connects. _(PR3: `docker compose up -d` brings up a healthy Postgres; app-side DB connection lands with Prisma in Phase 3)_
-- [ ] `pnpm typecheck && pnpm lint && pnpm test` passes locally and in CI. _(PR1: green locally. PR2: CI workflow added and verified to mirror these commands locally; the "in CI" half confirms once the workflow runs on GitHub)_
+- [x] `pnpm typecheck && pnpm lint && pnpm test` passes locally and in CI. _(PR1: green locally. PR2: CI workflow added and verified to mirror these commands locally; the "in CI" half confirms once the workflow runs on GitHub)_
 
 ---
 
@@ -147,22 +147,28 @@ Phased, actionable build plan. Each phase is a shippable increment; check items 
 
 ### Tools
 
-- [ ] Implement `get_delivery_history(eventId)`.
-- [ ] Implement `get_event_payload(eventId)`.
-- [ ] Implement `fetch_api_docs(provider, query)` (keyword retrieval over `ApiDoc`).
-- [ ] Run a bounded tool-calling loop; persist each tool call as an `InvestigationMessage`.
+- [x] Implement `get_delivery_history(eventId)`.
+- [x] Implement `get_event_payload(eventId)`.
+- [x] Implement `fetch_api_docs(provider, query)` (keyword retrieval over `ApiDoc`).
+- [x] Run a bounded tool-calling loop; persist each tool call as an `InvestigationMessage`.
 
 ### Grounding guardrails
 
-- [ ] Require evidence citations referencing real log fields in `evidence[]`.
-- [ ] Return `insufficient_evidence` + `isSpeculative: true` when data is thin.
-- [ ] Seed `ApiDoc` content for the demo providers.
+- [x] Require evidence citations referencing real log fields in `evidence[]`.
+- [x] Return `insufficient_evidence` + `isSpeculative: true` when data is thin.
+- [x] Seed `ApiDoc` content for the demo providers.
 
 ### Verification
 
-- [ ] With a spy client, assert the model calls the retrieval tools.
-- [ ] The final answer cites fields that actually appear in returned data.
-- [ ] Stripping the logs yields `insufficient_evidence` rather than a fabricated cause.
+- [x] With a spy client, assert the model calls the retrieval tools.
+- [x] The final answer cites fields that actually appear in returned data.
+- [x] Stripping the logs yields `insufficient_evidence` rather than a fabricated cause.
+
+### Follow-ups
+
+- [ ] Evaluate migrating the diagnosis client to the OpenAI Responses API to re-enable model
+      reasoning alongside function tools (currently forced to `reasoning_effort: 'none'` on
+      `chat.completions`, which disables reasoning on the tool path).
 
 ---
 

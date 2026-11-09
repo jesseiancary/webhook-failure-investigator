@@ -5,6 +5,7 @@
 
 export { getEventPayload, getDeliveryHistory } from './event-tools.js';
 export { fetchApiDocs, rankApiDocs, type RankableDoc, type RankedDoc } from './api-docs.js';
+export { buildDiagnosisToolkit } from './toolkit.js';
 export {
   EventToolParamsSchema,
   FetchApiDocsParamsSchema,
