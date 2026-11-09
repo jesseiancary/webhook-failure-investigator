@@ -47,10 +47,12 @@ jobs:
       - run: pnpm format:check
       - name: Apply migrations to the test database
         run: pnpm --filter server exec prisma migrate deploy
-      # Intentionally NO OPENAI_API_KEY in this job's env. The diagnosis live test
-      # (server/src/diagnosis/diagnosis.live.int.test.ts) is key-gated and must stay skipped in CI;
-      # exposing a key here would make every PR run paid, non-deterministic OpenAI calls. Diagnosis
-      # logic is covered deterministically by the stubbed-client integration test instead.
+      # Intentionally NO OPENAI_API_KEY in this job's env. The key-gated live tests — service-level
+      # (server/src/diagnosis/diagnosis.live.int.test.ts) and HTTP-level
+      # (server/src/diagnosis/diagnosis.routes.live.int.test.ts), both gated via hasOpenAIKey() —
+      # must stay skipped in CI; exposing a key here would make every PR run paid, non-deterministic
+      # OpenAI calls. Diagnosis logic is covered deterministically by the stubbed-client integration
+      # tests instead (diagnosis.service.int.test.ts and diagnosis.routes.int.test.ts).
       - run: pnpm test
       - run: pnpm build
 
