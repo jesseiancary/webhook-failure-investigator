@@ -15,12 +15,15 @@ patterns=(
   '-----BEGIN [A-Z ]*PRIVATE KEY-----'
 )
 
-# Data paths to scan: the scenario fixtures, the seed scripts, and any test snapshots. The
-# *.test.ts files under scenarios/ are excluded — they're assertions, not stored data. Non-existent
+# Data paths to scan: the scenario fixtures, the diagnosis prompt's few-shot fixtures (embedded
+# webhook request/response data), the seed scripts, and any test snapshots. The *.test.ts files
+# under scenarios/ and diagnosis/ are excluded — they're assertions, not stored data. Non-existent
 # pathspecs simply yield nothing.
 mapfile -t files < <(git ls-files -- \
   'server/src/ingest/scenarios' \
   ':(exclude)server/src/ingest/scenarios/*.test.ts' \
+  'server/src/diagnosis' \
+  ':(exclude)server/src/diagnosis/*.test.ts' \
   'server/src/ingest/seed.ts' \
   'server/prisma/seed.ts' \
   '*__snapshots__*')
