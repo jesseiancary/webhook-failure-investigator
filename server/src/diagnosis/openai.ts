@@ -2,6 +2,7 @@ import OpenAI from 'openai';
 import { zodResponseFormat } from 'openai/helpers/zod';
 import { env } from '../config/env.js';
 import { DiagnosisSchema, type Diagnosis } from './diagnosis.schema.js';
+import { createFakeDiagnosisClient } from './fake-llm.js';
 import type { ChatMessage } from './prompt.js';
 
 // The OpenAI seam for diagnosis. `DiagnosisClient` is the narrow contract the service depends on —
@@ -180,6 +181,13 @@ export function createOpenAIDiagnosisClient(opts?: {
   client?: OpenAI;
   model?: string;
 }): DiagnosisClient {
+  // Offline/e2e mode: return a deterministic fake so the stack runs with no key and no network. An
+  // explicitly injected client (the key-gated live test) still wins, so the flag can never silently
+  // fake a real-call test.
+  if (opts?.client == null && env.FAKE_LLM) {
+    return createFakeDiagnosisClient();
+  }
+
   const model = opts?.model ?? env.OPENAI_MODEL;
 
   return {

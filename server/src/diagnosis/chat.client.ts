@@ -1,5 +1,6 @@
 import type OpenAI from 'openai';
 import { env } from '../config/env.js';
+import { createFakeChatClient } from './fake-llm.js';
 import { getOpenAI, toOpenAIMessage } from './openai.js';
 import type { ChatMessage } from './prompt.js';
 
@@ -40,6 +41,12 @@ export interface ChatClient {
  * gets the shared singleton + `env.OPENAI_CHAT_MODEL`.
  */
 export function createOpenAIChatClient(opts?: { client?: OpenAI; model?: string }): ChatClient {
+  // Offline/e2e mode: return a deterministic fake so the stack runs with no key and no network. An
+  // explicitly injected client (the key-gated live test) still wins over the flag.
+  if (opts?.client == null && env.FAKE_LLM) {
+    return createFakeChatClient();
+  }
+
   const model = opts?.model ?? env.OPENAI_CHAT_MODEL;
 
   return {

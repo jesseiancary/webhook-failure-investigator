@@ -122,7 +122,54 @@ describe('GET /events/:id/investigations', () => {
     expect(list.body).toEqual([]);
   });
 
+  it('projects a summary: category/confidence/model/cost, but not the full diagnosis blob', async () => {
+    const event = await createEvent(submission);
+    await request(app).post(`/events/${event.id}/investigate`).expect(201);
+
+    const list = await request(app).get(`/events/${event.id}/investigations`).expect(200);
+    const [row] = list.body;
+    expect(row).toMatchObject({ failureCategory: 'authentication', model: 'gpt-4o-2024-08-06' });
+    expect(row.id).toBeTruthy();
+    expect(typeof row.confidence).toBe('number');
+    expect(row.costUsd).toBeDefined();
+    // The heavy diagnosis Json stays out of the list — it loads per-investigation on the detail view.
+    expect(row).not.toHaveProperty('diagnosis');
+  });
+
   it('returns 404 for an unknown event', async () => {
     await request(app).get('/events/does-not-exist/investigations').expect(404);
+  });
+});
+
+describe('GET /investigations/:id', () => {
+  it('returns the investigation with its event, delivery attempts, and message thread', async () => {
+    const event = await createEvent(submission);
+    const created = await request(app).post(`/events/${event.id}/investigate`).expect(201);
+
+    const res = await request(app).get(`/investigations/${created.body.id}`).expect(200);
+    expect(res.body.id).toBe(created.body.id);
+    expect(res.body.failureCategory).toBe('authentication');
+    expect(DiagnosisSchema.safeParse(res.body.diagnosis).success).toBe(true);
+    // The event it diagnosed, with its (redacted) attempts, so the detail view can show both.
+    expect(res.body.event.id).toBe(event.id);
+    expect(res.body.event.attempts).toHaveLength(1);
+    // The message thread is present (empty here — the canned stub makes no tool calls).
+    expect(Array.isArray(res.body.messages)).toBe(true);
+  });
+
+  it('returns 404 for an unknown investigation', async () => {
+    await request(app).get('/investigations/does-not-exist').expect(404);
+  });
+});
+
+describe('GET /events reflects the latest investigation', () => {
+  it('populates latestInvestigation on the summary list after a run', async () => {
+    const event = await createEvent(submission);
+    await request(app).post(`/events/${event.id}/investigate`).expect(201);
+
+    const list = await request(app).get('/events').expect(200);
+    const row = list.body.find((e: { id: string }) => e.id === event.id);
+    expect(row.latestInvestigation).toMatchObject({ failureCategory: 'authentication' });
+    expect(row.primaryResponseStatus).toBe(401);
   });
 });

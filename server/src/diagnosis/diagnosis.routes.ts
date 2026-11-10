@@ -1,6 +1,6 @@
 import express from 'express';
 import { asyncHandler } from '../http/error-handler.js';
-import { investigateEvent, listInvestigations } from './diagnosis.service.js';
+import { getInvestigationById, investigateEvent, listInvestigations } from './diagnosis.service.js';
 
 export const diagnosisRouter: express.Router = express.Router();
 
@@ -31,5 +31,20 @@ diagnosisRouter.get(
       return;
     }
     res.json(investigations);
+  }),
+);
+
+// GET /investigations/:id — one investigation with the event (+delivery attempts) it diagnosed and
+// its message thread, for the Phase 7 detail + chat view. Unknown id → 404 (getInvestigationById
+// returns null). Distinct path/method from POST /investigations/:id/chat, so the two don't collide.
+diagnosisRouter.get(
+  '/investigations/:id',
+  asyncHandler(async (req, res) => {
+    const investigation = await getInvestigationById(req.params.id);
+    if (investigation === null) {
+      res.status(404).json({ error: 'NotFound' });
+      return;
+    }
+    res.json(investigation);
   }),
 );
