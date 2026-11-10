@@ -106,9 +106,20 @@ model InvestigationMessage {
   role            String
   content         String
   toolCalls       Json?
-  createdAt       DateTime      @default(now())
+  // Monotonic ordinal for deterministic replay: rows inserted in one transaction can share a
+  // createdAt, so chat history is ordered by seq, not timestamp. A global autoincrement is
+  // sufficient — ordering by seq within one investigationId is still strictly correct.
+  seq             Int           @default(autoincrement())
+  // Per-turn LLM accounting (CLAUDE.md rule), populated on the assistant answer row of a chat turn.
+  // Nullable because user/tool rows and the Phase 5 diagnosis-trace rows carry no accounting.
+  model            String?
+  promptTokens     Int?
+  completionTokens Int?
+  costUsd          Decimal?     @db.Decimal(10, 6)
+  createdAt        DateTime     @default(now())
 
   @@index([investigationId])
+  @@index([investigationId, seq])
 }
 
 /// Retrievable reference docs for the fetch_api_docs tool (Phase 5). Keyword retrieval in v1.
