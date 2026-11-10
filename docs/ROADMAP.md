@@ -179,20 +179,20 @@ Phased, actionable build plan. Each phase is a shippable increment; check items 
 
 ### Threaded chat
 
-- [ ] `POST /investigations/:id/chat` with SSE streaming responses.
-- [ ] Persist user/assistant/tool messages in `InvestigationMessage`.
-- [ ] Replay history scoped to the investigation on each turn.
+- [x] `POST /investigations/:id/chat` with SSE streaming responses.
+- [x] Persist user/assistant/tool messages in `InvestigationMessage`.
+- [x] Replay history scoped to the investigation on each turn.
 
 ### Context budgeting
 
-- [ ] Enforce a token budget per request.
-- [ ] Summarize/truncate long log bodies with pointers back to full data.
-- [ ] Use a cheaper model tier for follow-ups.
+- [x] Enforce a token budget per request.
+- [x] Summarize/truncate long log bodies with pointers back to full data.
+- [x] Use a cheaper model tier for follow-ups.
 
 ### Verification
 
-- [ ] A follow-up ("why not a network issue?") answers from persisted context.
-- [ ] A very long log thread stays within the context limit without erroring.
+- [x] A follow-up ("why not a network issue?") answers from persisted context.
+- [x] A very long log thread stays within the context limit without erroring.
 
 ---
 
