@@ -63,7 +63,12 @@ const MAX_TOOL_ITERATIONS = 6;
 // first real use, so importing this module — or running the stub-backed tests — never forces the
 // key to be present. Cached per process to avoid rebuilding on every investigation.
 let openAiSingleton: OpenAI | undefined;
-function getOpenAI(): OpenAI {
+
+/**
+ * The lazily-constructed, process-cached OpenAI client. Exported so the Phase-6 chat client shares
+ * one instance (and one key read) with diagnosis rather than standing up a second SDK client.
+ */
+export function getOpenAI(): OpenAI {
   openAiSingleton ??= new OpenAI({ apiKey: env.OPENAI_API_KEY });
   return openAiSingleton;
 }
@@ -112,7 +117,13 @@ const DIAGNOSIS_RESPONSE_FORMAT = (() => {
   return responseFormat;
 })();
 
-function toOpenAIMessage(message: ChatMessage): OpenAI.Chat.Completions.ChatCompletionMessageParam {
+/**
+ * Map one internal `ChatMessage` onto the OpenAI messages shape. Exported so the Phase-6 chat client
+ * reuses the exact same mapping (its assembled context is plain system/user/assistant turns).
+ */
+export function toOpenAIMessage(
+  message: ChatMessage,
+): OpenAI.Chat.Completions.ChatCompletionMessageParam {
   // Switch rather than cast so the discriminated-union role stays type-checked.
   switch (message.role) {
     case 'system':

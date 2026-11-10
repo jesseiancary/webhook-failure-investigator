@@ -1,4 +1,5 @@
 import express, { type Express } from 'express';
+import { chatRouter } from './diagnosis/chat.routes.js';
 import { diagnosisRouter } from './diagnosis/diagnosis.routes.js';
 import { errorHandler } from './http/error-handler.js';
 import { captureRouter } from './ingest/capture.routes.js';
@@ -15,6 +16,7 @@ app.get('/health', (_req, res) => {
 app.use(eventsRouter);
 app.use(captureRouter);
 app.use(diagnosisRouter);
+app.use(chatRouter);
 
 // Terminal error middleware — must be registered last.
 app.use(errorHandler);
