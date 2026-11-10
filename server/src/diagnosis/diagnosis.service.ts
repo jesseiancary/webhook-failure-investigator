@@ -120,3 +120,24 @@ export async function listInvestigations(eventId: string) {
   });
   return event === null ? null : event.investigations;
 }
+
+/**
+ * Fetch one investigation by its own id, with the event + delivery attempts it diagnosed and its
+ * message thread (ordered by `seq` for deterministic replay). This is what Phase-6 chat loads per
+ * turn: the diagnosis to anchor the context, the logs to re-serialize into it, and the prior chat
+ * turns to replay. Returns `null` when the investigation doesn't exist (the route maps that to 404).
+ */
+export async function getInvestigationById(id: string) {
+  return prisma.investigation.findUnique({
+    where: { id },
+    include: {
+      event: { include: { attempts: { orderBy: { attemptedAt: 'asc' } } } },
+      messages: { orderBy: { seq: 'asc' } },
+    },
+  });
+}
+
+/** An investigation with its event (+attempts) and message thread, as `getInvestigationById` returns. */
+export type InvestigationWithContext = NonNullable<
+  Awaited<ReturnType<typeof getInvestigationById>>
+>;
