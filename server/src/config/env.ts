@@ -41,4 +41,9 @@ export const env = {
     // Current-generation model with Structured Outputs support; overridable for a different tier.
     return process.env.OPENAI_MODEL ?? 'gpt-6-luna';
   },
+  get OPENAI_CHAT_MODEL(): string {
+    // Follow-up chat model (Phase 6). Chat advertises no tools and no structured output, so it can
+    // run on a cheaper/faster tier than diagnosis without code changes; defaults to the same model.
+    return process.env.OPENAI_CHAT_MODEL ?? 'gpt-6-luna';
+  },
 };
