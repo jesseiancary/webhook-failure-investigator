@@ -46,4 +46,10 @@ export const env = {
     // run on a cheaper/faster tier than diagnosis without code changes; defaults to the same model.
     return process.env.OPENAI_CHAT_MODEL ?? 'gpt-6-luna';
   },
+  get FAKE_LLM(): boolean {
+    // Offline/e2e mode (Phase 7): when set, the diagnosis/chat client factories return deterministic
+    // fakes instead of calling OpenAI, so the whole stack runs with no API key and no network — which
+    // is what the Playwright happy-path drives. Opt-in only (`WFI_FAKE_LLM=1`); unset in production.
+    return process.env.WFI_FAKE_LLM === '1';
+  },
 };

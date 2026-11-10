@@ -116,7 +116,23 @@ export async function investigateEvent(eventId: string, opts?: { client?: Diagno
 export async function listInvestigations(eventId: string) {
   const event = await prisma.webhookEvent.findUnique({
     where: { id: eventId },
-    include: { investigations: { orderBy: { createdAt: 'desc' } } },
+    select: {
+      // Summary projection (ROADMAP Phase 7): the history list needs the category/confidence badge,
+      // the model + cost accounting, and the id to link to the detail view — not the full diagnosis
+      // Json blob (loaded per-investigation via GET /investigations/:id). Mirrors listEvents' choice
+      // to keep list payloads lean.
+      investigations: {
+        orderBy: { createdAt: 'desc' },
+        select: {
+          id: true,
+          failureCategory: true,
+          confidence: true,
+          model: true,
+          costUsd: true,
+          createdAt: true,
+        },
+      },
+    },
   });
   return event === null ? null : event.investigations;
 }

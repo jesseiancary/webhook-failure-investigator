@@ -60,9 +60,21 @@ export async function createEvent(
   });
 }
 
-/** List events newest-first with an attempt count — summary view, no bodies. */
+/**
+ * List events newest-first as dashboard summaries — no bodies, no diagnosis blob. Each row carries
+ * what the Phase 7 dashboard's four filters need from one request: the attempt count, a
+ * failure-biased response status (for the HTTP-status filter), and the latest investigation's
+ * category + confidence (for the category badge and the investigated-state filter).
+ *
+ * `primaryResponseStatus` is the HIGHEST response status across the event's attempts, not the last
+ * one: attempts from a single submission share an identical `attemptedAt` (`@default(now())` is the
+ * transaction timestamp) and there is no insertion-order column, so "most recent" would be a
+ * non-deterministic tie. Taking the max is order-independent and, because any 4xx/5xx outranks a
+ * 2xx/3xx, surfaces a failing delivery's failure (429→200 ⇒ 429). Null when no attempt recorded a
+ * status (e.g. a pure network failure). `latestInvestigation` is null until the event is investigated.
+ */
 export async function listEvents() {
-  return prisma.webhookEvent.findMany({
+  const events = await prisma.webhookEvent.findMany({
     orderBy: { receivedAt: 'desc' },
     select: {
       id: true,
@@ -70,8 +82,31 @@ export async function listEvents() {
       eventType: true,
       receivedAt: true,
       // No capture secret here: the token lives on CaptureEndpoint, never on the event.
-      _count: { select: { attempts: true } },
+      attempts: { select: { responseStatus: true } },
+      // `id` breaks a createdAt tie deterministically so the badge is stable across requests.
+      investigations: {
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+        take: 1,
+        select: { failureCategory: true, confidence: true },
+      },
     },
+  });
+
+  return events.map((event) => {
+    const statuses = event.attempts
+      .map((attempt) => attempt.responseStatus)
+      .filter((status): status is number => status != null);
+    return {
+      id: event.id,
+      source: event.source,
+      eventType: event.eventType,
+      receivedAt: event.receivedAt,
+      attemptCount: event.attempts.length,
+      primaryResponseStatus: statuses.length > 0 ? Math.max(...statuses) : null,
+      // Flatten the take:1 relation so the client never sees a misleading array-of-one (this is
+      // "the latest run", not the full history — which loads via GET /events/:id/investigations).
+      latestInvestigation: event.investigations[0] ?? null,
+    };
   });
 }
 

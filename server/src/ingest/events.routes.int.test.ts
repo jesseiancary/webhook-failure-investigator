@@ -86,14 +86,41 @@ describe('POST /events', () => {
 });
 
 describe('GET /events', () => {
-  it('lists created events with an attempt count', async () => {
+  it('lists created events with summary fields for the dashboard', async () => {
     await request(app).post('/events').send(submission).expect(201);
     const list = await request(app).get('/events').expect(200);
     expect(list.body).toHaveLength(1);
-    expect(list.body[0].source).toBe('stripe');
-    expect(list.body[0]._count.attempts).toBe(1);
-    // captureToken is a capture-routing secret — it must not appear in the summary list.
-    expect(list.body[0]).not.toHaveProperty('captureToken');
+    const [row] = list.body;
+    expect(row.source).toBe('stripe');
+    expect(row.attemptCount).toBe(1);
+    // Failure-biased status for the HTTP-status filter (single attempt here → its own status).
+    expect(row.primaryResponseStatus).toBe(401);
+    // Not yet investigated → null (drives the investigated-state filter + category badge).
+    expect(row.latestInvestigation).toBeNull();
+    // The summary stays lean: no bodies, no capture secret.
+    expect(row).not.toHaveProperty('captureToken');
+    expect(row).not.toHaveProperty('attempts');
+    expect(row).not.toHaveProperty('payload');
+  });
+
+  it('reports the failure status for a multi-attempt event regardless of attempt order', async () => {
+    // Two attempts, no explicit attemptedAt → they share the default transaction timestamp, so a
+    // "most recent attempt" rule would tie non-deterministically. The failure-biased max must still
+    // deterministically surface the 429 even though the terminal attempt succeeded with 200.
+    const retried = {
+      ...submission,
+      attempts: [
+        { ...submission.attempts[0], responseStatus: 429 },
+        { ...submission.attempts[0], responseStatus: 200 },
+      ],
+    };
+    await request(app).post('/events').send(retried).expect(201);
+
+    const list = await request(app).get('/events').expect(200);
+    expect(list.body).toHaveLength(1);
+    const [row] = list.body;
+    expect(row.attemptCount).toBe(2);
+    expect(row.primaryResponseStatus).toBe(429);
   });
 
   it('returns 404 for an unknown event', async () => {
