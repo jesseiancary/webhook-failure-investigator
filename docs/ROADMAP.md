@@ -203,22 +203,22 @@ Phased, actionable build plan. Each phase is a shippable increment; check items 
 
 ### Core screens
 
-- [ ] Events dashboard (list of captured/seeded failures, filter by category/status).
-- [ ] Investigation detail: diagnosis, confidence badge, evidence citations, remediation checklist, retry-by-event-id affordance.
-- [ ] Streaming chat panel on the investigation detail page.
-- [ ] Scenario submission form (manual event entry).
-- [ ] Give `GET /events/:id/investigations` a summary projection (drop the full `diagnosis` Json blob, mirroring `listEvents`) once the history view's field needs are known — it currently returns full rows.
+- [x] Events dashboard (list of captured/seeded failures, filter by category/status).
+- [x] Investigation detail: diagnosis, confidence badge, evidence citations, remediation checklist, retry-by-event-id affordance.
+- [x] Streaming chat panel on the investigation detail page.
+- [x] Scenario submission form (manual event entry).
+- [x] Give `GET /events/:id/investigations` a summary projection (drop the full `diagnosis` Json blob, mirroring `listEvents`) once the history view's field needs are known — it currently returns full rows.
 
 ### Polish
 
-- [ ] Tailwind + shadcn/ui styling, responsive layout, light/dark.
-- [ ] Loading/empty/error states; optimistic UX via TanStack Query.
-- [ ] Surface token/cost per investigation (nice credibility signal).
+- [x] Tailwind + shadcn/ui styling, responsive layout, light/dark.
+- [x] Loading/empty/error states; optimistic UX via TanStack Query.
+- [x] Surface token/cost per investigation (nice credibility signal).
 
 ### Verification
 
 - [ ] Playwright happy-path e2e: submit → investigate → read diagnosis → ask a follow-up.
-- [ ] Evidence citations visibly link to the underlying log fields.
+- [x] Evidence citations visibly link to the underlying log fields.
 
 ---
 
