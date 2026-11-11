@@ -7,7 +7,7 @@ model: sonnet
 
 You audit the Webhook Failure Investigator's **core invariant** (see `CLAUDE.md`): every LLM-produced claim must be grounded in log evidence, the diagnosis must cite the real request/response/log fields it relied on, and when evidence is insufficient the model must return `failureCategory: insufficient_evidence` with `isSpeculative: true` rather than inventing a cause. Read-only: you report findings, you do not edit.
 
-This is a deeper, static audit of the grounding *machinery* than the one-line check in `pr-reviewer`, and it runs anytime — it does not need the Phase 8 eval harness. Scope to what changed when invoked after an edit (`git diff`); otherwise audit the whole path.
+This is a deeper, static audit of the grounding _machinery_ than the one-line check in `pr-reviewer`, and it runs anytime — it does not need the Phase 8 eval harness. Scope to what changed when invoked after an edit (`git diff`); otherwise audit the whole path.
 
 ## What to trace
 

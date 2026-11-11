@@ -20,7 +20,7 @@ Take the stack from "runs on host via `pnpm dev`" to a live, reasonably secure U
 
 - **Deploy:** provision Railway/Render + managed Postgres; configure env/secrets; **run migrations on deploy** (`prisma migrate deploy`); serve the `/web` production build by or alongside the API.
 - **Hardening gates (enforce the project invariants in prod):**
-  - Re-verify secret/header **redaction** in both storage *and* logs (`server/src/ingest/redact.ts`) — the core rule.
+  - Re-verify secret/header **redaction** in both storage _and_ logs (`server/src/ingest/redact.ts`) — the core rule.
   - Rate-limit public endpoints; add a lightweight auth gate on write endpoints.
   - Set OpenAI **cost guardrails** — per-request and daily caps — consistent with the per-`Investigation` token/cost accounting the app already records.
 - **Verify:** a deployed smoke test runs one seeded investigation + one follow-up on the live URL; confirm no secrets appear in stored records or logs.

@@ -5,7 +5,7 @@ description: Stand up the Phase 8 LLM eval harness that the /eval command and pr
 
 # Build the eval harness (Phase 8)
 
-Make diagnosis quality measurable and regression-safe. The tooling that *consumes* a harness already exists — the `/eval` command and the `prompt-evaluator` agent both currently emit a "arrives in Phase 8" message. This skill builds the harness they call.
+Make diagnosis quality measurable and regression-safe. The tooling that _consumes_ a harness already exists — the `/eval` command and the `prompt-evaluator` agent both currently emit a "arrives in Phase 8" message. This skill builds the harness they call.
 
 > This is **Phase 8** (`docs/ROADMAP.md`). The labeled data it needs already landed in Phase 3. Build only when starting Phase 8; the parts below map 1:1 to the roadmap's Phase 8 checklist.
 
@@ -16,6 +16,7 @@ Each seed scenario carries ground truth: `expected.category` + `expected.evidenc
 ## 2. Score per prompt version
 
 Run a diagnosis for each scenario at a given `promptVersion` (`server/src/diagnosis/prompt.ts`) and score:
+
 - **Classification accuracy** — predicted `failureCategory` vs. `expected.category`, overall and per category.
 - **Grounding** — does the diagnosis `evidence[]` cite the `expected.evidence[]` fields? This is the invariant from `CLAUDE.md`; a confident answer that cites nothing real is a grounding failure even if the category is right.
 - **Confidence calibration** — low confidence on the genuinely ambiguous / `insufficient_evidence` scenarios, high on clear ones.

@@ -11,7 +11,7 @@ Make the work legible and compelling to hiring managers — the project's second
 
 ## What to produce
 
-1. **README** — architecture diagram, live demo link, and the quickstart (install → compose up → migrate → dev). Lead with what the project *is* and the one hard thing it does well.
+1. **README** — architecture diagram, live demo link, and the quickstart (install → compose up → migrate → dev). Lead with what the project _is_ and the one hard thing it does well.
 2. **Demo GIF / screenshots** of the full flow: submit → investigate → read the grounded diagnosis → ask a follow-up. Show the evidence citations and the token/cost line — they're the credibility signals.
 3. **Engineering-decisions writeup** — the parts a reviewer actually cares about: why **structured output** (Zod-once, shared with validation), how **grounding** is enforced (cite-real-fields or `insufficient_evidence`), **cost controls** (per-`Investigation` token/cost accounting, cheaper follow-up tier), and **context management** (token budgeting, truncation with pointers).
 4. **Embed the eval scorecard** from Phase 8 so quality claims are backed by numbers.

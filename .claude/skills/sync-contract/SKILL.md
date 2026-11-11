@@ -12,6 +12,7 @@ The project's rule is **define Zod schemas once and share them** between API val
 ## 1. Change the Zod source (never a duplicate)
 
 Edit the single source of truth for the shape:
+
 - Ingest / manual submission / capture input → `server/src/ingest/schemas.ts`.
 - Diagnosis output → `server/src/diagnosis/diagnosis.schema.ts` (also drives OpenAI Structured Outputs via `zodResponseFormat`).
 - Tool params → `server/src/diagnosis/tools/schemas.ts`.
