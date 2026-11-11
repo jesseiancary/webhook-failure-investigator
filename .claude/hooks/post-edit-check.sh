@@ -43,22 +43,37 @@ esac
 # File must exist on disk.
 [ -f "$file_path" ] || exit 0
 
-# --- Format (best effort; never blocks) --------------------------------------
+# --- Format + lint (best effort; never blocks) -------------------------------
 
 if npx --no-install prettier --version >/dev/null 2>&1; then
   npx --no-install prettier --write "$file_path" >/dev/null 2>&1 || \
     echo "post-edit-check: prettier could not format $file_path" >&2
 fi
 
+# Autofix lint issues on the edited file only; never blocks (typecheck is the gate).
+if npx --no-install eslint --version >/dev/null 2>&1; then
+  npx --no-install eslint --fix "$file_path" >/dev/null 2>&1 || true
+fi
+
 # --- Typecheck (blocks on failure) -------------------------------------------
 
+# Scope the typecheck to the edited file's workspace when we can tell which one
+# it is: build mode (`-b`) walks that workspace's project references, so a `web`
+# edit no longer pays for a `server` typecheck and vice versa. Falls back to the
+# root build when the path isn't under a known workspace. `--noEmit` disables the
+# incremental .tsbuildinfo cache, so each run is still cold — scoping is what keeps
+# it cheap. Relative path is resolved against the project dir.
+rel_path="${file_path#"$project_dir"/}"
+tsc_args=(-b)
+case "$rel_path" in
+  server/*) tsc_args+=(server) ;;
+  web/*) tsc_args+=(web) ;;
+  *) ;; # unknown workspace -> whole solution (no target)
+esac
+tsc_args+=(--noEmit)
+
 if [ -f "$project_dir/tsconfig.json" ] && npx --no-install tsc --version >/dev/null 2>&1; then
-  # Build mode (`-b`) walks the solution's project references so every
-  # workspace is typechecked from the root tsconfig; `--noEmit` suppresses output.
-  # Trade-off: `--noEmit` disables incremental .tsbuildinfo, so each edit triggers
-  # a cold full-repo typecheck. Fine at this size; if it gets slow, scope the check
-  # to the edited file's workspace (future optimization).
-  if ! tsc_output="$(cd "$project_dir" && npx --no-install tsc -b --noEmit 2>&1)"; then
+  if ! tsc_output="$(cd "$project_dir" && npx --no-install tsc "${tsc_args[@]}" 2>&1)"; then
     echo "post-edit-check: tsc --noEmit reported type errors:" >&2
     echo "$tsc_output" >&2
     exit 2
