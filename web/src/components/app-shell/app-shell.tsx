@@ -1,6 +1,8 @@
 import { Activity } from 'lucide-react';
+import { Suspense } from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
 import { cn } from '../../lib/utils';
+import { Skeleton } from '../ui/skeleton';
 import { ThemeToggle } from '../theme-toggle';
 
 const NAV = [
@@ -41,8 +43,21 @@ export function AppShell() {
         </div>
       </header>
       <main className="mx-auto max-w-6xl px-4 py-8">
-        <Outlet />
+        {/* One Suspense boundary for the lazy-loaded route components (see src/router.tsx). */}
+        <Suspense fallback={<RouteFallback />}>
+          <Outlet />
+        </Suspense>
       </main>
+    </div>
+  );
+}
+
+/** Lightweight placeholder shown while a lazy route chunk loads — a couple of neutral skeleton bars. */
+function RouteFallback() {
+  return (
+    <div className="space-y-4">
+      <Skeleton className="h-8 w-64" />
+      <Skeleton className="h-40 w-full" />
     </div>
   );
 }
