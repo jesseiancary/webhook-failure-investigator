@@ -217,7 +217,7 @@ Phased, actionable build plan. Each phase is a shippable increment; check items 
 
 ### Verification
 
-- [ ] Playwright happy-path e2e: submit → investigate → read diagnosis → ask a follow-up.
+- [x] Playwright happy-path e2e: submit → investigate → read diagnosis → ask a follow-up.
 - [x] Evidence citations visibly link to the underlying log fields.
 
 ---

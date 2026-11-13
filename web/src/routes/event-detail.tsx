@@ -238,14 +238,14 @@ function DiagnosisCard({ diagnosis }: { diagnosis: Diagnosis }) {
 }
 
 /** Pull a leading `attempts[N]` index out of an evidence `field` path, if it names one. */
-function citedAttemptIndex(field: string, attemptCount: number): number | null {
+export function citedAttemptIndex(field: string, attemptCount: number): number | null {
   const match = /^attempts\[(\d+)\]/.exec(field);
   if (!match) return null;
   const index = Number(match[1]);
   return index < attemptCount ? index : null;
 }
 
-function EvidenceCard({
+export function EvidenceCard({
   evidence,
   attemptCount,
   onCiteAttempt,

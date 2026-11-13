@@ -9,57 +9,12 @@ import { Button } from '../components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Input } from '../components/ui/input';
 import { Textarea } from '../components/ui/textarea';
+import { type AttemptForm, emptyAttempt, validateSubmission } from '../lib/submission';
 
 // The manual-submission form. The server's Zod `ManualSubmissionSchema` is the contract of record
 // (and it re-validates on POST — its ValidationError is surfaced inline below); this form can't
-// import that schema cross-workspace, so it does lightweight local checks for fast feedback and
-// leaves authoritative validation to the server. Keep the shape in lockstep with ManualSubmissionInput.
-
-interface AttemptForm {
-  /** Stable identity for the React key, so mid-list removal doesn't reorder DOM positionally. */
-  id: string;
-  requestUrl: string;
-  requestMethod: string;
-  requestHeaders: string; // JSON
-  requestBody: string; // JSON, optional
-  responseStatus: string; // integer, optional
-  responseHeaders: string; // JSON, optional
-  responseBody: string; // JSON, optional
-  latencyMs: string; // integer, optional
-  errorText: string; // optional
-}
-
-function emptyAttempt(): AttemptForm {
-  return {
-    id: crypto.randomUUID(),
-    requestUrl: '',
-    requestMethod: 'POST',
-    requestHeaders: '{}',
-    requestBody: '',
-    responseStatus: '',
-    responseHeaders: '',
-    responseBody: '',
-    latencyMs: '',
-    errorText: '',
-  };
-}
-
-/** Parse a JSON text field. `required` distinguishes "must be present" from "optional, skip if blank". */
-function parseJson(
-  text: string,
-  required: boolean,
-): { ok: true; value: unknown } | { ok: false; error: string } {
-  const trimmed = text.trim();
-  if (trimmed.length === 0) {
-    if (required) return { ok: false, error: 'Required.' };
-    return { ok: true, value: undefined };
-  }
-  try {
-    return { ok: true, value: JSON.parse(trimmed) };
-  } catch {
-    return { ok: false, error: 'Invalid JSON.' };
-  }
-}
+// import that schema cross-workspace, so it does lightweight local checks for fast feedback (see
+// lib/submission.ts) and leaves authoritative validation to the server.
 
 /** The server's Zod `flatten()` payload, surfaced when a POST is rejected despite local checks. */
 interface ServerErrors {
@@ -101,91 +56,22 @@ export default function SubmitPage() {
     setAttempts((prev) => prev.map((a, i) => (i === index ? { ...a, ...patch } : a)));
 
   function handleSubmit(): void {
-    const next: Record<string, string> = {};
-
-    if (source.trim().length === 0) next.source = 'Required.';
-    if (eventType.trim().length === 0) next.eventType = 'Required.';
-
-    const payloadParsed = parseJson(payload, true);
-    if (!payloadParsed.ok) next.payload = payloadParsed.error;
-
-    const headersParsed = parseJson(headers, true);
-    if (!headersParsed.ok) next.headers = headersParsed.error;
-
-    // Per-attempt checks; keys are prefixed `attempt{i}.field` so each input can show its own error.
-    const builtAttempts: ManualSubmissionInput['attempts'] = [];
-    attempts.forEach((attempt, i) => {
-      const prefix = `attempt${i}`;
-      if (attempt.requestUrl.trim().length === 0) {
-        next[`${prefix}.requestUrl`] = 'Required.';
-      } else {
-        try {
-          // A webhook delivery target is http(s); `new URL` alone would accept mailto:/foo: too.
-          const parsed = new URL(attempt.requestUrl);
-          if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
-            next[`${prefix}.requestUrl`] = 'Must be an http(s) URL.';
-          }
-        } catch {
-          next[`${prefix}.requestUrl`] = 'Must be a valid URL.';
-        }
-      }
-      if (attempt.requestMethod.trim().length === 0) next[`${prefix}.requestMethod`] = 'Required.';
-
-      const reqHeaders = parseJson(attempt.requestHeaders, true);
-      if (!reqHeaders.ok) next[`${prefix}.requestHeaders`] = reqHeaders.error;
-      const reqBody = parseJson(attempt.requestBody, false);
-      if (!reqBody.ok) next[`${prefix}.requestBody`] = reqBody.error;
-      const resHeaders = parseJson(attempt.responseHeaders, false);
-      if (!resHeaders.ok) next[`${prefix}.responseHeaders`] = resHeaders.error;
-      const resBody = parseJson(attempt.responseBody, false);
-      if (!resBody.ok) next[`${prefix}.responseBody`] = resBody.error;
-
-      let responseStatus: number | undefined;
-      if (attempt.responseStatus.trim().length > 0) {
-        responseStatus = Number(attempt.responseStatus);
-        if (!Number.isInteger(responseStatus))
-          next[`${prefix}.responseStatus`] = 'Must be an integer.';
-      }
-      let latencyMs: number | undefined;
-      if (attempt.latencyMs.trim().length > 0) {
-        latencyMs = Number(attempt.latencyMs);
-        if (!Number.isInteger(latencyMs) || latencyMs < 0) {
-          next[`${prefix}.latencyMs`] = 'Must be a non-negative integer.';
-        }
-      }
-
-      builtAttempts.push({
-        requestUrl: attempt.requestUrl.trim(),
-        requestMethod: attempt.requestMethod.trim(),
-        requestHeaders: (reqHeaders.ok ? reqHeaders.value : {}) as Record<
-          string,
-          string | string[]
-        >,
-        ...(reqBody.ok && reqBody.value !== undefined ? { requestBody: reqBody.value } : {}),
-        ...(responseStatus !== undefined ? { responseStatus } : {}),
-        ...(resHeaders.ok && resHeaders.value !== undefined
-          ? { responseHeaders: resHeaders.value as Record<string, string | string[]> }
-          : {}),
-        ...(resBody.ok && resBody.value !== undefined ? { responseBody: resBody.value } : {}),
-        ...(latencyMs !== undefined ? { latencyMs } : {}),
-        ...(attempt.errorText.trim().length > 0 ? { errorText: attempt.errorText.trim() } : {}),
-      });
+    const { errors: next, input } = validateSubmission({
+      source,
+      eventType,
+      payload,
+      headers,
+      attempts,
     });
 
     setErrors(next);
-    if (Object.keys(next).length > 0) {
+    if (input == null) {
       toast.error('Please fix the highlighted fields');
       return;
     }
 
     setServerErrors(null);
-    submit.mutate({
-      source: source.trim(),
-      eventType: eventType.trim(),
-      payload: payloadParsed.ok ? payloadParsed.value : undefined,
-      headers: (headersParsed.ok ? headersParsed.value : {}) as Record<string, string | string[]>,
-      attempts: builtAttempts,
-    });
+    submit.mutate(input);
   }
 
   return (

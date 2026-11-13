@@ -12,3 +12,8 @@ coverage/
 # misc
 .DS_Store
 *.log
+
+# playwright e2e output
+test-results/
+playwright-report/
+playwright/.cache/
