@@ -220,6 +220,14 @@ Phased, actionable build plan. Each phase is a shippable increment; check items 
 - [x] Playwright happy-path e2e: submit → investigate → read diagnosis → ask a follow-up.
 - [x] Evidence citations visibly link to the underlying log fields.
 
+### Follow-ups
+
+Deferred from the PR2 shell review (detail in [PHASE_7_PLAN.md](./PHASE_7_PLAN.md) "Deferred items & follow-ups"). Each is gated on a trigger that hasn't fired, so none is actioned yet — tracked here so they aren't lost.
+
+- [ ] **Explicit 204 handling in the API client** _(→ when a write endpoint first returns 204)_. `request<T>` in [web/src/api/client.ts](../web/src/api/client.ts) returns `undefined as T` on a 204 — an unsound cast, currently unreachable (no endpoint returns 204). When one does, make the no-content case explicit (a `requestVoid` helper, or a narrowed `T | undefined`).
+- [ ] **Bound the dev-proxy prefixes** _(→ when a route shares a prefix with an API path)_. The Vite proxy keys in [web/vite.config.ts](../web/vite.config.ts) are bare string prefixes, so a future sibling like `/events-archive` would over-match `/events`. Scope the affected key with a RegExp (`^/events(/|$)`). Dev-only; no such route exists today.
+- [ ] **Single-source the web/server contract** _(→ if drift becomes a real problem)_. [web/src/api/types.ts](../web/src/api/types.ts) hand-mirrors the server's response shapes with no compile-time drift guard (the canonical shapes are the server's Zod schemas). Extract a shared `@wfi/contracts` workspace (Zod + inferred types) imported by both workspaces rather than widening the build graph ad hoc. Candidate for a later hardening/refactor pass.
+
 ---
 
 ## Phase 8 — Eval Harness & Quality
