@@ -9,11 +9,10 @@ import {
 } from './openai.js';
 import { computeCostUsd } from './pricing.js';
 import {
-  FEW_SHOT_MESSAGES,
-  PROMPT_VERSION,
-  SYSTEM_PROMPT,
+  DEFAULT_PROMPT,
   buildUserMessage,
   type ChatMessage,
+  type DiagnosisPrompt,
 } from './prompt.js';
 import { buildDiagnosisToolkit } from './tools/index.js';
 
@@ -56,18 +55,26 @@ function toInvestigationMessages(
  * Investigate one stored event and persist the resulting Investigation. Returns `null` when the
  * event does not exist (the route maps that to a 404); otherwise returns the created row.
  */
-export async function investigateEvent(eventId: string, opts?: { client?: DiagnosisClient }) {
+export async function investigateEvent(
+  eventId: string,
+  opts?: { client?: DiagnosisClient; prompt?: DiagnosisPrompt },
+) {
   const event = await getEventById(eventId);
   if (event === null) {
     return null;
   }
 
+  // The prompt is overridable so the Phase-8 eval can A/B a variant against the default; production
+  // (and every non-eval caller) passes nothing and gets DEFAULT_PROMPT. The run records the variant's
+  // `version` below, so a diagnosis always traces to the exact prompt that produced it.
+  const prompt = opts?.prompt ?? DEFAULT_PROMPT;
+
   // System prompt + the curated few-shot turns + the investigation request. diagnosis-v2 no longer
   // inlines the event: the request names it, and the model retrieves the payload/history through the
   // toolkit (bound to this event, below) before diagnosing.
   const messages: ChatMessage[] = [
-    { role: 'system', content: SYSTEM_PROMPT },
-    ...FEW_SHOT_MESSAGES,
+    { role: 'system', content: prompt.systemPrompt },
+    ...prompt.fewShotMessages,
     {
       role: 'user',
       content: buildUserMessage({
@@ -98,7 +105,7 @@ export async function investigateEvent(eventId: string, opts?: { client?: Diagno
       failureCategory: diagnosis.failureCategory,
       confidence: diagnosis.confidence,
       model,
-      promptVersion: PROMPT_VERSION,
+      promptVersion: prompt.version,
       promptTokens: usage.promptTokens,
       completionTokens: usage.completionTokens,
       costUsd,

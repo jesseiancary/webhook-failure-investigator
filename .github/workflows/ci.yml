@@ -161,9 +161,11 @@ jobs:
     # WFI_FAKE_LLM=1 — the fake client returns one canned diagnosis for every scenario, so this asserts
     # the CLI path (seed -> investigate -> score -> render) runs end to end and emits a well-formed
     # scorecard, with no OPENAI_API_KEY, no spend, and no committed artifact (fake runs never export).
+    # It also smokes the PR3 CLI surface — variant selection and the `--check` skip path — at zero cost.
     # It is NOT a quality measurement; the real accuracy/grounding threshold (eval-threshold) is a
-    # key-gated, opt-in job that lands with the prompt A/B seam in Phase 8 PR3. Needs only a migrated
-    # Postgres, like the other always-on jobs.
+    # key-gated, opt-in CLI mode (`pnpm eval --check` on a real run), deliberately NOT wired as a CI job
+    # (no OPENAI_API_KEY secret here — see docs/planned-ci.md). Needs only a migrated Postgres, like the
+    # other always-on jobs.
     services:
       postgres:
         image: postgres:16-alpine
@@ -205,6 +207,21 @@ jobs:
           # A fake run is plumbing only: it must announce itself and must NOT export a committed artifact.
           grep -q 'plumbing run' <<<"$out"
           echo "eval smoke: ok"
+
+      - name: Smoke the PR3 CLI surface (variant selection + --check skip)
+        run: |
+          set -euo pipefail
+          # Variant selection: the regressed variant must render under its own version header. This is
+          # the one always-on job that exercises the regressed prompt's (lazy) derivation end to end.
+          regressed="$(pnpm eval regressed-no-grounding)"
+          echo "$regressed"
+          grep -q 'Eval Scorecard — diagnosis-v2-regressed-nogrounding' <<<"$regressed"
+          # --check in fake mode is plumbing, so it must skip enforcement (not measure the canned run)
+          # and still exit 0.
+          checked="$(pnpm eval --check)"
+          echo "$checked"
+          grep -q 'threshold check skipped' <<<"$checked"
+          echo "eval CLI-surface smoke: ok"
 
   tooling:
     name: Claude tooling gates

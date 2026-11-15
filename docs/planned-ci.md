@@ -9,10 +9,10 @@ CI is live as of **Phase 2 (PR2)**: [`.github/workflows/ci.yml`](../.github/work
 - **`quality`** — `pnpm install --frozen-lockfile` → `typecheck` → `lint` → `format:check` → `prisma migrate deploy` → `test` → `build`. Provisions a `postgres:16-alpine` service (Phase 3 PR2) so the Supertest API integration tests run against a real migrated database.
 - **`data-layer`** — the Phase 3 data gates: `prisma validate`, `prisma migrate deploy` (committed migrations apply cleanly against a Postgres service), and a `prisma migrate diff --exit-code` drift check (schema vs. migration history). Wired in Phase 3 (PR1).
 - **`e2e`** — the Phase 7 Playwright happy-path (submit → investigate → read diagnosis → follow-up). Provisions a `postgres:16-alpine` service and installs the Playwright browser; the test boots both halves of the stack itself on dedicated ports behind `WFI_FAKE_LLM=1`, so it runs deterministically with no OpenAI key. Wired in Phase 7 (PR4).
-- **`eval-smoke`** — the Phase 8 eval harness plumbing gate: runs `pnpm eval` behind `WFI_FAKE_LLM=1` against a Postgres service and asserts the CLI path (seed → investigate → score → render) emits a well-formed scorecard, with no OpenAI key, no spend, and no committed artifact (fake runs never export). Plumbing only — not a quality measurement. Wired in Phase 8 (PR2).
+- **`eval-smoke`** — the Phase 8 eval harness plumbing gate: runs `pnpm eval` behind `WFI_FAKE_LLM=1` against a Postgres service and asserts the CLI path (seed → investigate → score → render) emits a well-formed scorecard, with no OpenAI key, no spend, and no committed artifact (fake runs never export). Also smokes the PR3 CLI surface — variant selection (`pnpm eval regressed-no-grounding` renders under its own version) and the `--check` skip path — at zero cost. Plumbing only — not a quality measurement. Wired in Phase 8 (PR2; CLI-surface smoke added in PR3).
 - **`tooling`** — the Phase 1 "runnable now" gates plus the secret-redaction guard: `.claude/settings.json` JSON validation, `shellcheck` over the hooks and CI scripts, the hooks' no-op guarantee, frontmatter lint ([`scripts/ci/check-frontmatter.sh`](../scripts/ci/check-frontmatter.sh)), internal doc-link resolution ([`scripts/ci/check-doc-links.sh`](../scripts/ci/check-doc-links.sh)), and the secret-redaction guard over seed/fixture/snapshot data ([`scripts/ci/check-secret-redaction.sh`](../scripts/ci/check-secret-redaction.sh), wired in Phase 3 PR2).
 
-The one remaining later-phase gate — **`eval-threshold`** (the real accuracy/grounding quality bar) — is **not yet wired**: it is a key-gated, opt-in job that lands with the prompt A/B seam in **Phase 8 PR3**. This document remains the authoritative catalog that `/pr` reads to advise which checks are relevant for a given change set. See [ROADMAP.md](./ROADMAP.md) Phase 2 ("CI") and [PLAN.md](./PLAN.md) §7 ("Verification Strategy").
+The one remaining gate — **`eval-threshold`** (the real accuracy/grounding quality bar) — **ships as a CLI capability, deliberately not as an always-on CI job.** As of **Phase 8 PR3**, `pnpm eval --check` enforces a configurable minimum (classification accuracy + grounding pass rate, defaults 0.8/0.8, overridable via `WFI_EVAL_MIN_ACCURACY` / `WFI_EVAL_MIN_GROUNDING`) and exits non-zero below the bar — but only on a **real** run (fake mode prints a skip notice, since the canned diagnosis is not a quality measurement). A real run spends an `OPENAI_API_KEY`, so this stays a **key-gated, manual opt-in**: the maintainer runs it when a prompt/schema change warrants it. It is intentionally **not** added to `ci.yml` as a job — this repo configures no `OPENAI_API_KEY` secret, so such a job would only ever skip, and a dormant paid job is an accidental-spend risk. The always-on CI coverage for the harness is the fake-mode **`eval-smoke`** job (plumbing only). This document remains the authoritative catalog that `/pr` reads to advise which checks are relevant for a given change set. See [ROADMAP.md](./ROADMAP.md) Phase 2 ("CI") and [PLAN.md](./PLAN.md) §7 ("Verification Strategy").
 
 ---
 
@@ -54,11 +54,11 @@ This is the formally roadmapped CI milestone.
 
 ### Phase 7–8 — UI & evals
 
-| Gate                        | Checks                                                             | Trigger                                                  | Tool / command                                      |
-| --------------------------- | ------------------------------------------------------------------ | -------------------------------------------------------- | --------------------------------------------------- |
-| e2e                         | Playwright happy-path (submit → investigate → read → follow-up)    | `/web` or API-contract change                            | `pnpm playwright test`                              |
-| eval-smoke                  | Eval harness runs end to end and emits a well-formed scorecard     | eval harness (`server/src/eval/**`) or scenario change   | `WFI_FAKE_LLM=1 pnpm eval` (no key, no export)      |
-| eval-threshold _(optional)_ | Classification accuracy + grounding pass rate stay above a minimum | prompt version, few-shot set, or diagnosis schema change | `pnpm eval` with a threshold check (see PLAN.md §7) |
+| Gate                      | Checks                                                             | Trigger                                                  | Tool / command                                                              |
+| ------------------------- | ------------------------------------------------------------------ | -------------------------------------------------------- | --------------------------------------------------------------------------- |
+| e2e                       | Playwright happy-path (submit → investigate → read → follow-up)    | `/web` or API-contract change                            | `pnpm playwright test`                                                      |
+| eval-smoke                | Eval harness runs end to end and emits a well-formed scorecard     | eval harness (`server/src/eval/**`) or scenario change   | `WFI_FAKE_LLM=1 pnpm eval` (no key, no export)                              |
+| eval-threshold _(opt-in)_ | Classification accuracy + grounding pass rate stay above a minimum | prompt version, few-shot set, or diagnosis schema change | `pnpm eval --check` (real run only; key-gated manual opt-in — not a CI job) |
 
 ---
 
@@ -66,24 +66,24 @@ This is the formally roadmapped CI milestone.
 
 Skim-friendly summary for `/pr` to reason over.
 
-| Gate                   | Phase   | Relevant when the change set touches…                                        |
-| ---------------------- | ------- | ---------------------------------------------------------------------------- |
-| settings-json-valid    | 1 (now) | `.claude/settings.json`                                                      |
-| hooks-shellcheck       | 1 (now) | `.claude/hooks/*.sh`                                                         |
-| hooks-noop-guarantee   | 1 (now) | `.claude/hooks/*.sh`                                                         |
-| frontmatter-lint       | 1 (now) | `.claude/commands/*.md`, `.claude/agents/*.md`, `.claude/skills/**/SKILL.md` |
-| docs-link-check        | 1 (now) | `docs/*.md`, root `*.md`                                                     |
-| install                | 2       | dependency / manifest files                                                  |
-| typecheck              | 2       | `*.ts`, `*.tsx`                                                              |
-| lint                   | 2       | `*.ts`, `*.tsx`                                                              |
-| format-check           | 2       | any source                                                                   |
-| test                   | 2       | source or tests                                                              |
-| prisma-validate        | 3       | `schema.prisma`                                                              |
-| migration-drift        | 3       | `schema.prisma`, `migrations/`                                               |
-| secret-redaction-guard | 3       | seeds, fixtures, snapshots                                                   |
-| e2e                    | 7       | `/web`, API contracts                                                        |
-| eval-smoke             | 8 (now) | eval harness (`server/src/eval/**`), scenario library                        |
-| eval-threshold         | 8       | prompts, few-shot, diagnosis schema                                          |
+| Gate                   | Phase   | Relevant when the change set touches…                                         |
+| ---------------------- | ------- | ----------------------------------------------------------------------------- |
+| settings-json-valid    | 1 (now) | `.claude/settings.json`                                                       |
+| hooks-shellcheck       | 1 (now) | `.claude/hooks/*.sh`                                                          |
+| hooks-noop-guarantee   | 1 (now) | `.claude/hooks/*.sh`                                                          |
+| frontmatter-lint       | 1 (now) | `.claude/commands/*.md`, `.claude/agents/*.md`, `.claude/skills/**/SKILL.md`  |
+| docs-link-check        | 1 (now) | `docs/*.md`, root `*.md`                                                      |
+| install                | 2       | dependency / manifest files                                                   |
+| typecheck              | 2       | `*.ts`, `*.tsx`                                                               |
+| lint                   | 2       | `*.ts`, `*.tsx`                                                               |
+| format-check           | 2       | any source                                                                    |
+| test                   | 2       | source or tests                                                               |
+| prisma-validate        | 3       | `schema.prisma`                                                               |
+| migration-drift        | 3       | `schema.prisma`, `migrations/`                                                |
+| secret-redaction-guard | 3       | seeds, fixtures, snapshots                                                    |
+| e2e                    | 7       | `/web`, API contracts                                                         |
+| eval-smoke             | 8 (now) | eval harness (`server/src/eval/**`), scenario library                         |
+| eval-threshold         | 8       | prompts, few-shot, diagnosis schema _(key-gated opt-in: `pnpm eval --check`)_ |
 
 **How `/pr` uses this:** for the files in the current change set, surface the matching gates — marking the Phase-1 gates as runnable today and later-phase gates as "planned (not yet applicable — toolchain/data layer absent)."
 
