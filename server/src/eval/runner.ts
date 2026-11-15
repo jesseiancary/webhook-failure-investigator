@@ -1,6 +1,7 @@
 import { DiagnosisSchema, type Diagnosis } from '../diagnosis/diagnosis.schema.js';
 import { investigateEvent } from '../diagnosis/diagnosis.service.js';
 import type { DiagnosisClient } from '../diagnosis/openai.js';
+import type { DiagnosisPrompt } from '../diagnosis/prompt.js';
 import { labeledScenarios } from './labels.js';
 import { scoreScenarios } from './scorers.js';
 import type { Scorecard } from './types.js';
@@ -31,15 +32,23 @@ export interface EvalResult {
 
 /**
  * Investigate every seeded scenario with the given client (default: the real/fake OpenAI client per
- * env) and score the diagnoses. Throws if a scenario isn't seeded, since an unseeded event would
- * silently drop from the scorecard and inflate the denominator's meaning — run `db:seed` first.
+ * env) and score the diagnoses. An optional `prompt` overrides the production prompt so the harness
+ * can A/B a variant (Phase 8 PR3); each run records the variant's `version`, so the scorecard traces
+ * to the exact prompt. Throws if a scenario isn't seeded, since an unseeded event would silently drop
+ * from the scorecard and inflate the denominator's meaning — run `db:seed` first.
  */
-export async function runEval(opts?: { client?: DiagnosisClient }): Promise<EvalResult> {
+export async function runEval(opts?: {
+  client?: DiagnosisClient;
+  prompt?: DiagnosisPrompt;
+}): Promise<EvalResult> {
   const runs: EvalRun[] = [];
   const scenarios = labeledScenarios();
 
   for (const scenario of scenarios) {
-    const investigation = await investigateEvent(scenario.key, { client: opts?.client });
+    const investigation = await investigateEvent(scenario.key, {
+      client: opts?.client,
+      prompt: opts?.prompt,
+    });
     if (investigation === null) {
       throw new Error(
         `Scenario "${scenario.key}" is not seeded — run \`pnpm --filter server db:seed\` before the eval.`,

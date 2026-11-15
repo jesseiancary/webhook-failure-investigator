@@ -307,3 +307,23 @@ export const FEW_SHOT_MESSAGES: ChatMessage[] = FEW_SHOT_EXAMPLES.flatMap(
     ];
   },
 );
+
+/**
+ * A complete, self-describing prompt for one diagnosis run: the system instructions, the few-shot
+ * turns injected before the request, and the `version` stamped onto the resulting Investigation. The
+ * module constants above are the production default; the Phase-8 eval's prompt-override seam
+ * (`investigateEvent(..., { prompt })`) swaps in a variant from this same shape to A/B a prompt
+ * change, so a run always records the exact prompt that produced it.
+ */
+export interface DiagnosisPrompt {
+  systemPrompt: string;
+  fewShotMessages: ChatMessage[];
+  version: string;
+}
+
+/** The production prompt: the default `investigateEvent` uses this when no override is supplied. */
+export const DEFAULT_PROMPT: DiagnosisPrompt = {
+  systemPrompt: SYSTEM_PROMPT,
+  fewShotMessages: FEW_SHOT_MESSAGES,
+  version: PROMPT_VERSION,
+};

@@ -237,21 +237,21 @@ Deferred from the PR2 shell review. Each is gated on a trigger that hasn't fired
 
 ### Harness
 
-- [ ] Build a labeled scenario set from the seeds (category + expected evidence).
-- [ ] Score classification accuracy per prompt version.
-- [ ] Score grounding quality (does the answer cite real evidence?).
-- [ ] Spot-check confidence calibration (low confidence ↔ genuinely ambiguous cases).
+- [x] Build a labeled scenario set from the seeds (category + expected evidence). _(PR1: `server/src/eval/labels.ts` reads each seed's `expected.category` + `expected.evidence[]` directly — no parallel label format)_
+- [x] Score classification accuracy per prompt version. _(PR1: `scorers.ts` — overall + per-category; the prompt version is recorded per run and tags the exported scorecard)_
+- [x] Score grounding quality (does the answer cite real evidence?). _(PR1: `grounding.ts` path-matches the diagnosis's cited `evidence[].field` against the expected fields; an `insufficient_evidence` scenario passes by correctly refusing)_
+- [x] Spot-check confidence calibration (low confidence ↔ genuinely ambiguous cases). _(PR1: `scorers.ts` bands confidence and flags over/under-confidence against each scenario's clarity)_
 
 ### Reporting
 
-- [ ] `/eval` prints a scorecard; export results to `docs/`.
-- [ ] Optionally gate CI on a minimum accuracy/grounding threshold.
-- [ ] Publish the scorecard in the README.
+- [x] `/eval` prints a scorecard; export results to `docs/`. _(PR2: `pnpm eval` renders a compact scorecard to stdout and, on a real run, exports a timestamped JSON + Markdown pair to `docs/eval/` for diffing across versions)_
+- [x] Optionally gate CI on a minimum accuracy/grounding threshold. _(PR3: `pnpm eval --check` enforces a configurable accuracy/grounding floor (exit non-zero below the bar). It is wired as a key-gated **manual opt-in**, not an always-on CI job — this repo has no `OPENAI_API_KEY` secret, so a real-spend job would only ever skip; see [planned-ci.md](./planned-ci.md). The always-on CI coverage is the fake-mode `eval-smoke` job.)_
+- [ ] Publish the scorecard in the README. _(Deferred to Phase 11 — Portfolio Presentation; `docs/eval/README.md` holds the pointer until then.)_
 
 ### Verification
 
-- [ ] Running the harness on two prompt versions shows a comparable scorecard.
-- [ ] A deliberately regressed prompt is caught by the eval.
+- [x] Running the harness on two prompt versions shows a comparable scorecard. _(PR3: the `default` and `regressed-no-grounding` variants (`server/src/eval/prompt-variants.ts`) each export under their own `version`, producing side-by-side, diffable scorecards in `docs/eval/`.)_
+- [x] A deliberately regressed prompt is caught by the eval. _(PR3: deterministically and with no key in `regressed-prompt.int.test.ts` — a prompt-aware stub degrades when the grounding rule is stripped, and the scorecard's accuracy + grounding drop; reproducible on a real model via `pnpm eval regressed-no-grounding`.)_
 
 ---
 
