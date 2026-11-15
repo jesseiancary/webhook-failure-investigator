@@ -1,7 +1,7 @@
 // Seed CLI entry (run via `pnpm --filter server db:seed` / `prisma db seed`). Thin wrapper: the
 // loader and the scenario library live under src/ (typechecked + unit-tested); this file just runs
 // it and manages the process lifecycle. Kept here by Prisma convention (package.json `prisma.seed`).
-import { prisma } from '../src/db/client.js';
+import { runEntrypoint } from '../src/cli/run-entrypoint.js';
 import { seedApiDocs, seedScenarios } from '../src/ingest/seed.js';
 
 async function main(): Promise<void> {
@@ -12,10 +12,4 @@ async function main(): Promise<void> {
   );
 }
 
-main()
-  .then(() => prisma.$disconnect())
-  .catch(async (err: unknown) => {
-    console.error(err);
-    await prisma.$disconnect();
-    process.exit(1);
-  });
+runEntrypoint(main);
