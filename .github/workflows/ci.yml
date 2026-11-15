@@ -154,6 +154,58 @@ jobs:
           path: web/test-results/
           retention-days: 7
 
+  eval-smoke:
+    name: Eval harness smoke (fake-mode)
+    runs-on: ubuntu-latest
+    # The Phase 8 eval harness plumbing gate (docs/planned-ci.md: eval-smoke). Runs `pnpm eval` behind
+    # WFI_FAKE_LLM=1 — the fake client returns one canned diagnosis for every scenario, so this asserts
+    # the CLI path (seed -> investigate -> score -> render) runs end to end and emits a well-formed
+    # scorecard, with no OPENAI_API_KEY, no spend, and no committed artifact (fake runs never export).
+    # It is NOT a quality measurement; the real accuracy/grounding threshold (eval-threshold) is a
+    # key-gated, opt-in job that lands with the prompt A/B seam in Phase 8 PR3. Needs only a migrated
+    # Postgres, like the other always-on jobs.
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: wfi
+          POSTGRES_PASSWORD: wfi_dev_password
+          POSTGRES_DB: wfi
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U wfi -d wfi"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://wfi:wfi_dev_password@localhost:5432/wfi?schema=public
+      WFI_FAKE_LLM: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+
+      - name: Apply migrations to the test database
+        run: pnpm --filter server exec prisma migrate deploy
+
+      - name: Run the fake-mode eval and assert a well-formed scorecard
+        run: |
+          set -euo pipefail
+          # Capturing under `set -e` fails the job if the CLI exits non-zero. The fake client needs no
+          # key; stdout carries the rendered scorecard (pricing warnings go to stderr).
+          out="$(pnpm eval)"
+          echo "$out"
+          grep -q 'Eval Scorecard' <<<"$out"
+          grep -q 'Accuracy:' <<<"$out"
+          # A fake run is plumbing only: it must announce itself and must NOT export a committed artifact.
+          grep -q 'plumbing run' <<<"$out"
+          echo "eval smoke: ok"
+
   tooling:
     name: Claude tooling gates
     runs-on: ubuntu-latest
