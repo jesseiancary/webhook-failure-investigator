@@ -301,8 +301,9 @@ Deferred from the PR2 shell review. Each is gated on a trigger that hasn't fired
 ### Deploy
 
 - [ ] Provision Railway/Render service + managed Postgres.
-- [ ] Configure env/secrets; run migrations on deploy.
-- [ ] Set up a production build for `/web` served by or alongside the API.
+- [ ] Configure env/secrets.
+- [x] Run migrations on deploy. _(The `runtime` image's prod entrypoint (`server/docker-entrypoint.prod.sh`) runs `prisma migrate deploy` before booting — never seeds. Verified in a local prod-image smoke; also exposed as `pnpm --filter server migrate:deploy`. See [PHASE_10_PLAN.md](./PHASE_10_PLAN.md) B2.)_
+- [x] Set up a production build for `/web` served by or alongside the API. _(Single-service: the `runtime` image builds `web/dist`, and the server serves it on one origin via `express.static` + an `Accept: text/html` SPA navigation bypass mirroring the dev proxy. No separate web host, no CORS. Verified in a local prod-image smoke; the stubbed `web/Dockerfile` nginx target is now unused. See [PHASE_10_PLAN.md](./PHASE_10_PLAN.md) B1/B3.)_
 
 ### Hardening
 

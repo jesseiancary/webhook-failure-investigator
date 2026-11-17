@@ -62,6 +62,14 @@ export const env = {
   get NODE_ENV(): NodeEnv {
     return (process.env.NODE_ENV as NodeEnv | undefined) ?? 'development';
   },
+  get WEB_DIST_PATH(): string | undefined {
+    // Optional override for where the built web bundle (web/dist) lives, served by express.static in
+    // production for the single-origin deploy (Phase 10, B1). Unset → app.ts resolves it relative to
+    // the compiled server (../../web/dist, i.e. the runtime image's /app/web/dist). An explicit value
+    // also force-enables static serving outside production (handy for a local prod-parity smoke).
+    const raw = process.env.WEB_DIST_PATH;
+    return raw === undefined || raw === '' ? undefined : raw;
+  },
   get OPENAI_API_KEY(): string {
     return required('OPENAI_API_KEY');
   },
