@@ -13,13 +13,17 @@ Two goals drive every decision:
 
 Full rationale lives in [docs/PLAN.md](docs/PLAN.md); the phased build checklist is in [docs/ROADMAP.md](docs/ROADMAP.md). Read both before non-trivial work.
 
+## Current phase
+
+**Phases 1–9 complete.** The app is a working, fully containerized full stack: data model + ingestion, grounded structured-output diagnosis, tool calling, follow-up chat, the React UI, an eval harness, and — as of **Phase 9 (Full Local Containerization)** — `docker compose up` runs server + web + Postgres together with in-container hot reload (the host `pnpm dev` loop is still supported). **Next: Phase 10 — Deploy & Hardening** (managed Postgres, migrations-on-deploy, prod web build, rate limiting, auth gate on writes, OpenAI cost caps). [docs/ROADMAP.md](docs/ROADMAP.md) is the authoritative checklist.
+
 ## The core rule
 
 **Every LLM-produced claim must be grounded in log evidence.** The diagnosis must cite the real request/response/log fields it relied on. When evidence is insufficient, return `failureCategory: insufficient_evidence` with `isSpeculative: true` rather than inventing a cause. This rule is the whole point of the project — never regress it.
 
 ## Layout
 
-> The repo is mid-build. The `/server` and `/web` workspace skeletons landed in **Phase 2 (PR1)**; their contents (Prisma, OpenAI integration, the real UI) fill in over later phases.
+> The `/server` and `/web` workspaces are fully built out — Prisma data model, OpenAI integration (structured output + tool calling), follow-up chat, and the React UI — and the whole stack is containerized (**Phase 9**). The skeletons landed in Phase 2 (PR1) and filled in over Phases 3–9; see [docs/ROADMAP.md](docs/ROADMAP.md) for the history.
 
 ```
 /server        Express + TypeScript API, Prisma, OpenAI integration

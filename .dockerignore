@@ -1,0 +1,38 @@
+# Build context is the repo root for both server/Dockerfile and web/Dockerfile (the pnpm workspace
+# install needs the root lockfile + all manifests). A .dockerignore only takes effect at the context
+# root, so this single file governs both images — per-workspace .dockerignore files would be inert
+# here. Keep the context small and never ship local secrets into an image.
+
+# Dependencies & build output (reinstalled/recompiled inside the image)
+node_modules
+**/node_modules
+dist
+**/dist
+build
+**/build
+*.tsbuildinfo
+**/*.tsbuildinfo
+
+# Secrets & local env — never copy into an image layer
+.env
+.env.*
+!.env.example
+
+# Test / coverage artifacts
+coverage
+**/coverage
+test-results
+**/test-results
+playwright-report
+**/playwright-report
+playwright/.cache
+
+# VCS & editor noise
+.git
+.gitignore
+.DS_Store
+*.log
+
+# Docs & tooling not needed at build time
+docs
+.claude
