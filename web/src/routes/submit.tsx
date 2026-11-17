@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { ApiError, apiClient } from '../api/client';
-import type { ManualSubmissionInput } from '../api/types';
+import type { ManualSubmissionInput } from '@wfi/contracts';
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Input } from '../components/ui/input';

@@ -1,4 +1,4 @@
-import type { ManualSubmissionInput } from '../api/types';
+import type { ManualSubmissionInput } from '@wfi/contracts';
 
 // Pure validation + marshalling for the manual-submission form (src/routes/submit.tsx). Kept out of
 // the component so it's unit-testable without rendering. The server's Zod `ManualSubmissionSchema`

@@ -15,11 +15,16 @@ RUN apk add --no-cache openssl
 RUN corepack enable
 WORKDIR /app
 # Only the files that affect dependency resolution, so this layer caches across source edits.
-# server/prisma is copied too: server's `postinstall` runs `prisma generate`, which needs the schema.
-COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
+# Two install-time side effects need their inputs present here: server's `postinstall` runs
+# `prisma generate` (needs server/prisma), and @wfi/contracts' `prepare` compiles its dist (needs the
+# contracts source + its tsconfig + the shared base tsconfig). Without the contracts manifest the pnpm
+# workspace glob would silently skip it, leaving no `@wfi/contracts` symlink and breaking resolution.
+COPY pnpm-lock.yaml pnpm-workspace.yaml package.json tsconfig.base.json ./
 COPY server/package.json ./server/
 COPY web/package.json ./web/
 COPY server/prisma ./server/prisma
+COPY contracts/package.json contracts/tsconfig.json ./contracts/
+COPY contracts/src ./contracts/src
 RUN pnpm install --frozen-lockfile
 
 # --- build: compile server/dist from source (prisma client already generated in deps) --------
@@ -42,6 +47,13 @@ COPY --from=build /app/server/node_modules /app/server/node_modules
 COPY --from=build /app/server/dist /app/server/dist
 COPY --from=build /app/server/prisma /app/server/prisma
 COPY --from=build /app/server/package.json /app/server/package.json
+# @wfi/contracts is a workspace dep: server/node_modules/@wfi/contracts symlinks to /app/contracts,
+# so the slim runtime needs its manifest + compiled dist (the `exports` entry) or the import dangles.
+# Its node_modules carries the `zod` symlink into the root .pnpm store (copied above) — contracts'
+# dist imports zod at runtime, so without it the import fails with ERR_MODULE_NOT_FOUND (zod).
+COPY --from=build /app/contracts/package.json /app/contracts/package.json
+COPY --from=build /app/contracts/dist /app/contracts/dist
+COPY --from=build /app/contracts/node_modules /app/contracts/node_modules
 # node:22-alpine ships a non-root `node` user.
 USER node
 EXPOSE 3000

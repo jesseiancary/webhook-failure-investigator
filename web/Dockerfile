@@ -13,10 +13,16 @@ FROM node:22-alpine AS deps
 RUN apk add --no-cache openssl
 RUN corepack enable
 WORKDIR /app
-COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
+# server's postinstall runs `prisma generate` (needs server/prisma); @wfi/contracts' `prepare`
+# compiles its dist (needs the contracts source + its tsconfig + the shared base tsconfig). The
+# contracts manifest must be present or the pnpm workspace glob skips it, leaving no symlink and
+# breaking the web build's `@wfi/contracts` import resolution.
+COPY pnpm-lock.yaml pnpm-workspace.yaml package.json tsconfig.base.json ./
 COPY server/package.json ./server/
 COPY web/package.json ./web/
 COPY server/prisma ./server/prisma
+COPY contracts/package.json contracts/tsconfig.json ./contracts/
+COPY contracts/src ./contracts/src
 RUN pnpm install --frozen-lockfile
 
 # --- dev: Vite dev server (source + node_modules come from the compose bind-mount/volumes) -----

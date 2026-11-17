@@ -30,17 +30,27 @@ importers:
         specifier: ^8.11.0
         version: 8.72.1(eslint@9.39.5(jiti@2.7.0))(typescript@5.9.3)
 
+  contracts:
+    dependencies:
+      zod:
+        specifier: ^3.23.8
+        version: 3.25.76
+    devDependencies:
+      typescript:
+        specifier: ^5.6.3
+        version: 5.9.3
+
   server:
     dependencies:
       '@prisma/client':
         specifier: ^5.22.0
         version: 5.22.0(prisma@5.22.0)
+      '@wfi/contracts':
+        specifier: workspace:*
+        version: link:../contracts
       dotenv:
         specifier: ^16.4.5
         version: 16.6.1
-      dotenv-expand:
-        specifier: ^1000.0.0
-        version: 1000.0.0
       express:
         specifier: ^4.21.1
         version: 4.22.3
@@ -87,6 +97,9 @@ importers:
       '@tanstack/react-query':
         specifier: ^5.107.1
         version: 5.107.1(@types/react@18.3.31)(react@18.3.1)
+      '@wfi/contracts':
+        specifier: workspace:*
+        version: link:../contracts
       class-variance-authority:
         specifier: ^0.7.1
         version: 0.7.1
@@ -1604,10 +1617,6 @@ packages:
 
   dom-accessibility-api@0.5.16:
     resolution: {integrity: sha512-X7BJ2yElsnOJ30pZF4uIIDfBEVgF4XEBxL9Bxhy6dnrm5hkzqmsWHGTiHqRiITNhMyFLyAiWndIJP7Z1NTteDg==}
-
-  dotenv-expand@1000.0.0:
-    resolution: {integrity: sha512-3T4TtUjXm5iGKFEirqKjcDJ0EheFJbv9peb5xytC+HNu3l5Ygnu4dYE8yeqkppHMsh1If9C/A//EJu7IPtNu+A==}
-    engines: {node: '>=16'}
 
   dotenv@16.6.1:
     resolution: {integrity: sha512-uBq4egWHTcTt33a72vpSG0z3HnPuIl6NqYcTrKEg2azoEyl2hpW0zqlxysq2pK9HlDIHyHyakeYaYnSAwd8bow==}
@@ -3998,8 +4007,6 @@ snapshots:
       wrappy: 1.0.2
 
   dom-accessibility-api@0.5.16: {}
-
-  dotenv-expand@1000.0.0: {}
 
   dotenv@16.6.1: {}
 

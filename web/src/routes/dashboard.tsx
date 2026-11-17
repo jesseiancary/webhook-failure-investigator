@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { type ReactNode, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { apiClient } from '../api/client';
-import type { EventSummary } from '../api/types';
+import type { EventSummary } from '@wfi/contracts';
 import { CategoryBadge } from '../components/category-badge';
 import { ConfidenceBadge } from '../components/confidence-badge';
 import { Badge } from '../components/ui/badge';

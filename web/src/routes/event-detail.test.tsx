@@ -1,6 +1,6 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
-import type { Evidence } from '../api/types';
+import type { Evidence } from '@wfi/contracts';
 import { EvidenceCard, citedAttemptIndex } from './event-detail';
 
 // The evidence→log link is the grounding invariant made visible: a citation whose `field` names a
