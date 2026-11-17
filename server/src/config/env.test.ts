@@ -7,7 +7,11 @@ import { env } from './env.js';
 // restores — no spawning, no DB. The stricter contract: unset → undefined (caller uses the default);
 // set-but-invalid (blank / non-numeric / out of [0,1]) → throw, so a typo fails loudly.
 
-const KEYS = ['WFI_EVAL_MIN_ACCURACY', 'WFI_EVAL_MIN_GROUNDING'] as const;
+const KEYS = [
+  'WFI_EVAL_MIN_ACCURACY',
+  'WFI_EVAL_MIN_GROUNDING',
+  'OPENAI_REASONING_EFFORT',
+] as const;
 
 afterEach(() => {
   for (const key of KEYS) {
@@ -43,5 +47,25 @@ describe('env.EVAL_MIN_ACCURACY / EVAL_MIN_GROUNDING', () => {
     process.env.WFI_EVAL_MIN_GROUNDING = '   ';
     expect(() => env.EVAL_MIN_ACCURACY).toThrow(/\[0,1\]/);
     expect(() => env.EVAL_MIN_GROUNDING).toThrow(/\[0,1\]/);
+  });
+});
+
+describe('env.OPENAI_REASONING_EFFORT', () => {
+  it('defaults to medium when unset or blank (no override supplied)', () => {
+    expect(env.OPENAI_REASONING_EFFORT).toBe('medium');
+    process.env.OPENAI_REASONING_EFFORT = '';
+    expect(env.OPENAI_REASONING_EFFORT).toBe('medium');
+  });
+
+  it('passes through a known effort level', () => {
+    process.env.OPENAI_REASONING_EFFORT = 'high';
+    expect(env.OPENAI_REASONING_EFFORT).toBe('high');
+    process.env.OPENAI_REASONING_EFFORT = 'none';
+    expect(env.OPENAI_REASONING_EFFORT).toBe('none');
+  });
+
+  it('throws on an unknown level rather than reaching the API with a bad argument', () => {
+    process.env.OPENAI_REASONING_EFFORT = 'ultra';
+    expect(() => env.OPENAI_REASONING_EFFORT).toThrow(/OPENAI_REASONING_EFFORT/);
   });
 });

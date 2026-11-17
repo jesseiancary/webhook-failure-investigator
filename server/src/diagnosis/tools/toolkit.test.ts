@@ -12,14 +12,14 @@ describe('buildDiagnosisToolkit definitions', () => {
   const toolkit = buildDiagnosisToolkit(EVENT_ID);
 
   it('advertises the three retrieval tools', () => {
-    const names = toolkit.definitions.map((d) => (d.type === 'function' ? d.function.name : ''));
+    const names = toolkit.definitions.map((d) => (d.type === 'function' ? d.name : ''));
     expect(names).toEqual(['get_event_payload', 'get_delivery_history', 'fetch_api_docs']);
   });
 
-  it('advertises them as strict function tools (required by chat.completions.parse)', () => {
+  it('advertises them as strict function tools (required by responses.parse)', () => {
     for (const def of toolkit.definitions) {
       expect(def.type).toBe('function');
-      if (def.type === 'function') expect(def.function.strict).toBe(true);
+      if (def.type === 'function') expect(def.strict).toBe(true);
     }
   });
 });

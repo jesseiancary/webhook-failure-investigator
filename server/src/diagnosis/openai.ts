@@ -1,5 +1,5 @@
 import OpenAI from 'openai';
-import { zodResponseFormat } from 'openai/helpers/zod';
+import { zodTextFormat } from 'openai/helpers/zod';
 import { env } from '../config/env.js';
 import { DiagnosisSchema, type Diagnosis } from './diagnosis.schema.js';
 import { createFakeDiagnosisClient } from './fake-llm.js';
@@ -35,7 +35,7 @@ export interface PersistedToolCall {
  * at another event.
  */
 export interface DiagnosisToolkit {
-  definitions: OpenAI.Chat.Completions.ChatCompletionTool[];
+  definitions: OpenAI.Responses.FunctionTool[];
   /** Validate `argsJson` and run the named tool, returning its citable text block (or an error block). */
   execute(name: string, argsJson: string): Promise<string>;
 }
@@ -109,13 +109,13 @@ function stripNumericRangeKeywords(node: unknown): void {
   }
 }
 
-// Build the response format once (the schema is static) and sanitize it in place — mutating the
-// nested `schema` preserves the object's auto-parse brand, so `.parse()` still deserializes the
-// completion through DiagnosisSchema (which is where the [0,1] bound is enforced).
-const DIAGNOSIS_RESPONSE_FORMAT = (() => {
-  const responseFormat = zodResponseFormat(DiagnosisSchema, 'diagnosis');
-  stripNumericRangeKeywords(responseFormat.json_schema.schema);
-  return responseFormat;
+// Build the Responses-API text format once (the schema is static) and sanitize it in place —
+// mutating `schema` preserves the object's auto-parse brand, so `responses.parse` still populates
+// `output_parsed` through DiagnosisSchema (which is where the [0,1] bound is enforced).
+const DIAGNOSIS_TEXT_FORMAT = (() => {
+  const textFormat = zodTextFormat(DiagnosisSchema, 'diagnosis');
+  stripNumericRangeKeywords(textFormat.schema);
+  return textFormat;
 })();
 
 /**
@@ -152,20 +152,74 @@ export function toOpenAIMessage(
   }
 }
 
-/** The function tool calls on a completion message, narrowed to the `function` variant we support. */
-function functionToolCalls(
-  message: OpenAI.Chat.Completions.ChatCompletionMessage | undefined,
-): OpenAI.Chat.Completions.ChatCompletionMessageFunctionToolCall[] {
-  return (message?.tool_calls ?? []).filter(
-    (call): call is OpenAI.Chat.Completions.ChatCompletionMessageFunctionToolCall =>
-      call.type === 'function',
+/**
+ * Map one internal `ChatMessage` onto the Responses-API input shape. Unlike Chat Completions, the
+ * Responses API models a tool-call turn as standalone `function_call` items and a tool result as a
+ * `function_call_output` item (not a nested `tool_calls` array / `tool` message), so one message can
+ * expand into several input items — hence the array return. The diagnosis loop uses this; the chat
+ * client keeps `toOpenAIMessage` (it still streams via Chat Completions).
+ */
+export function toResponsesInput(message: ChatMessage): OpenAI.Responses.ResponseInputItem[] {
+  switch (message.role) {
+    case 'system':
+      return [{ role: 'system', content: message.content }];
+    case 'user':
+      return [{ role: 'user', content: message.content }];
+    case 'assistant': {
+      // A few-shot assistant turn is either a tool-call turn (toolCalls set, content null) or the
+      // final diagnosis text. Tool calls become `function_call` items; any accompanying text rides as
+      // a separate assistant message so the model sees it in order.
+      if (message.toolCalls && message.toolCalls.length > 0) {
+        const items: OpenAI.Responses.ResponseInputItem[] = message.toolCalls.map((call) => ({
+          type: 'function_call',
+          call_id: call.id,
+          name: call.name,
+          arguments: call.arguments,
+        }));
+        // Currently unreachable: every real caller (the few-shots, and the model's own tool-call
+        // turns echoed back in the loop) pairs `toolCalls` with `content: null`. Kept as defensive
+        // handling for the day a tool-call turn also carries prose — not exercised by tests today.
+        if (message.content != null && message.content !== '') {
+          items.unshift({ role: 'assistant', content: message.content });
+        }
+        return items;
+      }
+      return [{ role: 'assistant', content: message.content ?? '' }];
+    }
+    case 'tool':
+      return [
+        { type: 'function_call_output', call_id: message.toolCallId, output: message.content },
+      ];
+  }
+}
+
+// These two read only ParsedT-independent parts of the response (function_call items, refusal
+// parts), so they take `ParsedResponse<unknown>` — `responses.parse`'s ParsedT inference is brittle
+// under the conditional tool/reasoning params, and we re-validate `output_parsed` through
+// DiagnosisSchema regardless, so narrowing it to `Diagnosis` here buys nothing.
+
+/** The function calls in a response's output, narrowed to the `function_call` items we execute. */
+function responseFunctionCalls(
+  response: OpenAI.Responses.ParsedResponse<unknown>,
+): OpenAI.Responses.ParsedResponseFunctionToolCall[] {
+  return response.output.filter(
+    (item): item is OpenAI.Responses.ParsedResponseFunctionToolCall =>
+      item.type === 'function_call',
   );
 }
 
-/** Throw if the model refused — a refusal is a hard failure, not a diagnosis we can persist. */
-function assertNoRefusal(message: OpenAI.Chat.Completions.ChatCompletionMessage | undefined): void {
-  if (message?.refusal != null && message.refusal !== '') {
-    throw new Error(`OpenAI refused to produce a diagnosis: ${message.refusal}`);
+/** Throw if the model refused — a refusal is a hard failure, not a diagnosis we can persist. A
+ * Responses-API refusal surfaces as a `refusal` content part on an output message. */
+function assertNoRefusal(response: OpenAI.Responses.ParsedResponse<unknown>): void {
+  for (const item of response.output) {
+    if (item.type !== 'message') {
+      continue;
+    }
+    for (const part of item.content) {
+      if (part.type === 'refusal' && part.refusal !== '') {
+        throw new Error(`OpenAI refused to produce a diagnosis: ${part.refusal}`);
+      }
+    }
   }
 }
 
@@ -196,16 +250,14 @@ export function createOpenAIDiagnosisClient(opts?: {
       toolkit?: DiagnosisToolkit,
     ): Promise<DiagnosisResult> {
       const client = opts?.client ?? getOpenAI();
-      const working: OpenAI.Chat.Completions.ChatCompletionMessageParam[] =
-        messages.map(toOpenAIMessage);
       const toolCalls: PersistedToolCall[] = [];
       const useTools = toolkit != null && toolkit.definitions.length > 0;
 
       let promptTokens = 0;
       let completionTokens = 0;
-      const accumulate = (usage: OpenAI.Completions.CompletionUsage | undefined): void => {
-        promptTokens += usage?.prompt_tokens ?? 0;
-        completionTokens += usage?.completion_tokens ?? 0;
+      const accumulate = (usage: OpenAI.Responses.ResponseUsage | undefined): void => {
+        promptTokens += usage?.input_tokens ?? 0;
+        completionTokens += usage?.output_tokens ?? 0;
       };
       const finish = (diagnosis: Diagnosis): DiagnosisResult => ({
         diagnosis,
@@ -214,84 +266,93 @@ export function createOpenAIDiagnosisClient(opts?: {
         toolCalls,
       });
 
+      // Reasoning can run on every call now: the Responses API supports function tools AND reasoning
+      // together, which is the whole reason for migrating off /v1/chat/completions (there, advertising
+      // tools forced reasoning_effort 'none'). Effort is configurable via OPENAI_REASONING_EFFORT, and
+      // 'none' OMITS the reasoning param entirely — both to disable reasoning and because a
+      // non-reasoning OPENAI_MODEL rejects the field outright. Spread into each request.
+      const reasoningParam =
+        env.OPENAI_REASONING_EFFORT === 'none'
+          ? {}
+          : { reasoning: { effort: env.OPENAI_REASONING_EFFORT } };
+
+      // Context is threaded server-side via `previous_response_id` (store: true): the first call sends
+      // the full mapped transcript, and each later call sends ONLY the new items (the tool results)
+      // plus the prior response id. OpenAI retains the reasoning + function_call items for us, so we
+      // never hand-replay them — which both preserves the model's chain-of-thought across tool turns
+      // and avoids the fragile/rejected replay of orphaned reasoning items a stateless loop would hit.
+      // (The conversation is retained ~30 days; the logs are already redacted to "[REDACTED]" before
+      // any tool returns them, so nothing unredacted is stored.)
+      let nextInput: OpenAI.Responses.ResponseInputItem[] = messages.flatMap(toResponsesInput);
+      let previousResponseId: string | undefined;
+
       for (let iteration = 0; iteration < MAX_TOOL_ITERATIONS; iteration++) {
-        const completion = await client.chat.completions.parse({
+        const response = await client.responses.parse({
           model,
-          messages: working,
-          response_format: DIAGNOSIS_RESPONSE_FORMAT,
-          // Advertising function tools to a reasoning model on /v1/chat/completions requires
-          // reasoning_effort 'none' (the API rejects the default and points to /v1/responses). This
-          // disables reasoning on the tool path, including the final diagnosis; it's an accepted v1
-          // tradeoff — the live tests confirm the model still grounds correctly, and migrating the
-          // client to the Responses API (which supports tools + reasoning together) is a deferred
-          // follow-up (see docs/PHASE_5_PLAN.md "Out of scope" and ROADMAP Phase 5). Scope it to the
-          // tool path so the no-tool branch keeps the model's default reasoning behavior.
-          ...(useTools
-            ? { tools: toolkit.definitions, tool_choice: 'auto', reasoning_effort: 'none' }
-            : {}),
+          input: nextInput,
+          store: true,
+          ...(previousResponseId ? { previous_response_id: previousResponseId } : {}),
+          text: { format: DIAGNOSIS_TEXT_FORMAT },
+          ...reasoningParam,
+          ...(useTools ? { tools: toolkit.definitions, tool_choice: 'auto' } : {}),
         });
-        accumulate(completion.usage);
+        accumulate(response.usage);
+        assertNoRefusal(response);
+        previousResponseId = response.id;
 
-        const message = completion.choices[0]?.message;
-        assertNoRefusal(message);
-
-        const requestedCalls = useTools ? functionToolCalls(message) : [];
+        const requestedCalls = useTools ? responseFunctionCalls(response) : [];
         if (toolkit && requestedCalls.length > 0) {
-          // Record the assistant turn verbatim, then execute each call and feed the result back so
-          // the next turn sees the retrieved logs.
-          working.push({
-            role: 'assistant',
-            content: message?.content ?? null,
-            tool_calls: requestedCalls.map((call) => ({
-              id: call.id,
-              type: 'function',
-              function: { name: call.function.name, arguments: call.function.arguments },
-            })),
-          });
+          // Execute each call and carry ONLY the tool results into the next turn as function_call_output
+          // items (paired to their call by call_id). The matching function_call + any reasoning items
+          // live server-side under previousResponseId, so we must not re-send them here.
+          const outputs: OpenAI.Responses.ResponseInputItem[] = [];
           for (const call of requestedCalls) {
-            const result = await toolkit.execute(call.function.name, call.function.arguments);
-            working.push({ role: 'tool', tool_call_id: call.id, content: result });
+            const result = await toolkit.execute(call.name, call.arguments);
+            outputs.push({ type: 'function_call_output', call_id: call.call_id, output: result });
             toolCalls.push({
-              id: call.id,
-              name: call.function.name,
-              arguments: call.function.arguments,
+              id: call.call_id,
+              name: call.name,
+              arguments: call.arguments,
               result,
             });
           }
+          nextInput = outputs;
           continue;
         }
 
-        if (message?.parsed != null) {
+        if (response.output_parsed != null) {
           // Enforce the full contract here: the schema we send omits the numeric `confidence` bound
           // (see stripNumericRangeKeywords), so this parse is what guarantees confidence ∈ [0,1] and
           // the complete DiagnosisSchema shape on the value we persist.
-          return finish(DiagnosisSchema.parse(message.parsed));
+          return finish(DiagnosisSchema.parse(response.output_parsed));
         }
 
         // No tool calls and no parsed diagnosis — nothing more will come from looping; force a final
-        // answer below rather than spin.
+        // answer below (no new input; the model answers from the server-side context) rather than spin.
+        nextInput = [];
         break;
       }
 
       // Loop exhausted (or a degenerate empty turn): make one final tool-disabled call so an
-      // investigation always ends in a diagnosis instead of an error.
-      const finalCompletion = await client.chat.completions.parse({
+      // investigation always ends in a diagnosis instead of an error. It sends any pending tool
+      // results plus previousResponseId, so the model answers from the full retained context.
+      const finalResponse = await client.responses.parse({
         model,
-        messages: working,
-        response_format: DIAGNOSIS_RESPONSE_FORMAT,
-        // Tools are still advertised (even with tool_choice 'none'), so keep reasoning_effort 'none'.
-        ...(useTools
-          ? { tools: toolkit.definitions, tool_choice: 'none', reasoning_effort: 'none' }
-          : {}),
+        input: nextInput,
+        store: true,
+        ...(previousResponseId ? { previous_response_id: previousResponseId } : {}),
+        text: { format: DIAGNOSIS_TEXT_FORMAT },
+        ...reasoningParam,
+        // Tools are still advertised (even with tool_choice 'none') so the schema/context are identical.
+        ...(useTools ? { tools: toolkit.definitions, tool_choice: 'none' } : {}),
       });
-      accumulate(finalCompletion.usage);
+      accumulate(finalResponse.usage);
 
-      const finalMessage = finalCompletion.choices[0]?.message;
-      assertNoRefusal(finalMessage);
-      if (finalMessage?.parsed == null) {
+      assertNoRefusal(finalResponse);
+      if (finalResponse.output_parsed == null) {
         throw new Error('OpenAI returned no parsed diagnosis after the tool-calling loop.');
       }
-      return finish(DiagnosisSchema.parse(finalMessage.parsed));
+      return finish(DiagnosisSchema.parse(finalResponse.output_parsed));
     },
   };
 }

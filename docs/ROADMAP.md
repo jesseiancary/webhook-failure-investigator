@@ -166,9 +166,11 @@ Phased, actionable build plan. Each phase is a shippable increment; check items 
 
 ### Follow-ups
 
-- [ ] Evaluate migrating the diagnosis client to the OpenAI Responses API to re-enable model
-      reasoning alongside function tools (currently forced to `reasoning_effort: 'none'` on
-      `chat.completions`, which disables reasoning on the tool path).
+- [x] Migrate the diagnosis client to the OpenAI Responses API (`responses.parse` + `zodTextFormat`)
+      to re-enable model reasoning alongside function tools — the `chat.completions` path forced
+      `reasoning_effort: 'none'`. Reasoning effort is now configurable via `OPENAI_REASONING_EFFORT`
+      (default `medium`). The follow-up chat client stays on `chat.completions` (it advertises no
+      tools, so the constraint never applied).
 
 ---
 
