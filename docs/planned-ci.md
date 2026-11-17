@@ -63,8 +63,8 @@ This is the formally roadmapped CI milestone.
 
 ### Phase 10 — deploy
 
-| Gate         | Checks                                                              | Trigger                                                                          | Tool / command                                                                 |
-| ------------ | ------------------------------------------------------------------- | ------------------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
+| Gate         | Checks                                                                 | Trigger                                                                                                          | Tool / command                                                                     |
+| ------------ | ---------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
 | docker-build | The `runtime` deploy image builds (COPY paths, stage order, web build) | `server/Dockerfile`, `web/Dockerfile`, `.dockerignore`, `railway.json`, or the build/entrypoint inputs they copy | `docker build -f server/Dockerfile --target runtime .` (no push — Railway deploys) |
 
 ---
@@ -91,7 +91,7 @@ Skim-friendly summary for `/pr` to reason over.
 | e2e                    | 7       | `/web`, API contracts                                                         |
 | eval-smoke             | 8 (now) | eval harness (`server/src/eval/**`), scenario library                         |
 | eval-threshold         | 8       | prompts, few-shot, diagnosis schema _(key-gated opt-in: `pnpm eval --check`)_ |
-| docker-build           | 10      | `server/Dockerfile`, `web/Dockerfile`, `.dockerignore`, `railway.json`         |
+| docker-build           | 10      | `server/Dockerfile`, `web/Dockerfile`, `.dockerignore`, `railway.json`        |
 
 **How `/pr` uses this:** for the files in the current change set, surface the matching gates — marking the Phase-1 gates as runnable today and later-phase gates as "planned (not yet applicable — toolchain/data layer absent)."
 
