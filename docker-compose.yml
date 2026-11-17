@@ -1,3 +1,8 @@
+# Pin the Compose project name so the derived resource prefix (networks, and the `*_wfi_*` volume
+# names the `docker:refresh` script removes) is stable regardless of the checkout directory name,
+# rather than defaulting to the directory. Overridable via COMPOSE_PROJECT_NAME.
+name: webhook-failure-investigator
+
 services:
   postgres:
     image: postgres:16-alpine
