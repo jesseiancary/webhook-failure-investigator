@@ -14,33 +14,38 @@ import { EventToolParamsSchema, FetchApiDocsParamsSchema } from './schemas.js';
 // the runtime argument validation here, per the CLAUDE.md "define Zod once" rule.
 
 /**
- * Build a strict-but-UNBRANDED OpenAI function tool from a Zod param schema. We derive the JSON
- * Schema from the Zod object via `zodFunction` (keeping the CLAUDE.md "define Zod once" rule: the
+ * Build a strict-but-UNBRANDED OpenAI Responses function tool from a Zod param schema. We derive the
+ * JSON Schema from the Zod object via `zodFunction` (keeping the CLAUDE.md "define Zod once" rule: the
  * same schema drives the advertised shape and the runtime validation in `execute`), but return a
- * plain tool object rather than `zodFunction`'s auto-parseable (branded) result. The brand matters:
+ * plain Responses-API tool object rather than an auto-parseable (branded) `zodResponsesFunction`
+ * result. The flat shape (`{ type, name, parameters, strict }`, no nested `function`) is what the
+ * Responses API expects; the brand matters:
  *
- * - `strict: true` is required — `client.chat.completions.parse` rejects non-strict tools, and it
- *   makes the model emit arguments matching the shape.
+ * - `strict: true` is required — `client.responses.parse` rejects non-strict tools, and it makes the
+ *   model emit arguments matching the shape.
  * - Dropping the brand is deliberate. An auto-parseable tool makes `.parse()` run the Zod schema on
  *   the model's arguments *inside* the SDK, and a failure (e.g. an empty string vs `.min(1)`) throws
- *   out of the whole completion — aborting the investigation. Unbranded, `.parse()` only JSON-parses
- *   the arguments, so semantic validation falls to `execute` below, where a bad or out-of-scope call
+ *   out of the whole response — aborting the investigation. Unbranded, the SDK only JSON-parses the
+ *   arguments, so semantic validation falls to `execute` below, where a bad or out-of-scope call
  *   becomes a graceful error tool-result the model can recover from within the bounded loop.
  */
 function functionTool(
   name: string,
   parameters: ZodTypeAny,
   description: string,
-): OpenAI.Chat.Completions.ChatCompletionTool {
+): OpenAI.Responses.FunctionTool {
   const { function: fn } = zodFunction({ name, parameters, description });
   return {
     type: 'function',
-    function: { name: fn.name, description, parameters: fn.parameters, strict: true },
+    name: fn.name,
+    description,
+    parameters: fn.parameters ?? null,
+    strict: true,
   };
 }
 
 // Static: the schemas are fixed, so build the advertised definitions once.
-const TOOL_DEFINITIONS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
+const TOOL_DEFINITIONS: OpenAI.Responses.FunctionTool[] = [
   functionTool(
     'get_event_payload',
     EventToolParamsSchema,

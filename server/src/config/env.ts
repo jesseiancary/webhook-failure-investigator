@@ -15,6 +15,12 @@ loadDotenv({ path: repoRootEnv });
 
 type NodeEnv = 'development' | 'test' | 'production';
 
+// The reasoning-effort levels the OpenAI Responses API accepts (its `reasoning.effort`), mirrored
+// here so a bad override fails loudly at boot instead of on the first live call. 'none' reproduces
+// the pre-Responses behavior (no reasoning); the diagnosis default is 'medium'.
+const REASONING_EFFORTS = ['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'] as const;
+export type ReasoningEffort = (typeof REASONING_EFFORTS)[number];
+
 function required(name: string): string {
   const value = process.env[name];
   if (value === undefined || value === '') {
@@ -42,7 +48,8 @@ function unitInterval(name: string): number | undefined {
 
 /**
  * Typed, validated access to the environment. Prefer importing `env` over reading
- * `process.env` directly so missing config fails loudly at boot.
+ * `process.env` directly so missing/invalid config fails loudly on first use (these are lazy
+ * getters, so validation happens when a value is first read, not at process start).
  */
 export const env = {
   get DATABASE_URL(): string {
@@ -66,6 +73,24 @@ export const env = {
     // Follow-up chat model (Phase 6). Chat advertises no tools and no structured output, so it can
     // run on a cheaper/faster tier than diagnosis without code changes; defaults to the same model.
     return process.env.OPENAI_CHAT_MODEL ?? 'gpt-6-luna';
+  },
+  get OPENAI_REASONING_EFFORT(): ReasoningEffort {
+    // Diagnosis reasoning effort for the Responses API (Phase 5 → PR3). The default 'medium' is a
+    // balanced setting for grounded tool-using diagnosis; override per-deploy for cost/quality (e.g.
+    // 'high' for the hardest cases). 'none' makes the client OMIT the reasoning param entirely — it
+    // both disables reasoning and is the value to use with a non-reasoning OPENAI_MODEL (which rejects
+    // the field). A value outside the known set throws on first read (the first diagnosis request),
+    // rather than silently reaching the API as an invalid argument.
+    const raw = process.env.OPENAI_REASONING_EFFORT;
+    if (raw === undefined || raw === '') {
+      return 'medium';
+    }
+    if (!(REASONING_EFFORTS as readonly string[]).includes(raw)) {
+      throw new Error(
+        `OPENAI_REASONING_EFFORT must be one of ${REASONING_EFFORTS.join(', ')}; got "${raw}".`,
+      );
+    }
+    return raw as ReasoningEffort;
   },
   get FAKE_LLM(): boolean {
     // Offline/e2e mode (Phase 7): when set, the diagnosis/chat client factories return deterministic

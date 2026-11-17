@@ -11,13 +11,12 @@ import type { ChatMessage } from './prompt.js';
 // the "not faked" cases inject a sentinel client that throws, proving control reached the real loop.
 
 // A sentinel OpenAI whose first call throws, so "we took the real path" is observable without a key.
+// Diagnosis now runs on the Responses API, so the sentinel stubs `responses.parse` (not chat).
 function sentinelDiagnosisClient(message: string): OpenAI {
   return {
-    chat: {
-      completions: {
-        parse: async () => {
-          throw new Error(message);
-        },
+    responses: {
+      parse: async () => {
+        throw new Error(message);
       },
     },
   } as unknown as OpenAI;

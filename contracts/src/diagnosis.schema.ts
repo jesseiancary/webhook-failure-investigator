@@ -3,7 +3,7 @@ import { FAILURE_CATEGORIES } from './failure-category.js';
 
 // The structured-output contract for a single diagnosis. Per CLAUDE.md's "single-source shapes"
 // rule this one Zod schema is reused everywhere a diagnosis is shaped — it drives OpenAI
-// Structured Outputs (via `zodResponseFormat` on `client.chat.completions.parse`, see
+// Structured Outputs (via `zodTextFormat` on `client.responses.parse`, see
 // server/src/diagnosis/openai.ts) and any API-side validation. It mirrors PLAN §5.1 and derives its
 // category enum from FAILURE_CATEGORIES so the taxonomy stays single-sourced (a server test locks it
 // to the Prisma enum).

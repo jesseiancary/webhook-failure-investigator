@@ -31,7 +31,7 @@ export interface ToolCall {
  * A chat message in the diagnosis request. A discriminated union over the OpenAI roles so the
  * tool-calling loop is type-checked end to end: an `assistant` turn may carry `toolCalls`, and a
  * `tool` turn carries the result paired to a call by `toolCallId`. `openai.ts` maps these onto the
- * OpenAI messages array.
+ * OpenAI Responses input items (diagnosis) and the Chat Completions messages array (chat).
  */
 export type ChatMessage =
   | { role: 'system' | 'user'; content: string }
