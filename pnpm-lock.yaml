@@ -38,6 +38,9 @@ importers:
       dotenv:
         specifier: ^16.4.5
         version: 16.6.1
+      dotenv-expand:
+        specifier: ^1000.0.0
+        version: 1000.0.0
       express:
         specifier: ^4.21.1
         version: 4.22.3
@@ -1601,6 +1604,10 @@ packages:
 
   dom-accessibility-api@0.5.16:
     resolution: {integrity: sha512-X7BJ2yElsnOJ30pZF4uIIDfBEVgF4XEBxL9Bxhy6dnrm5hkzqmsWHGTiHqRiITNhMyFLyAiWndIJP7Z1NTteDg==}
+
+  dotenv-expand@1000.0.0:
+    resolution: {integrity: sha512-3T4TtUjXm5iGKFEirqKjcDJ0EheFJbv9peb5xytC+HNu3l5Ygnu4dYE8yeqkppHMsh1If9C/A//EJu7IPtNu+A==}
+    engines: {node: '>=16'}
 
   dotenv@16.6.1:
     resolution: {integrity: sha512-uBq4egWHTcTt33a72vpSG0z3HnPuIl6NqYcTrKEg2azoEyl2hpW0zqlxysq2pK9HlDIHyHyakeYaYnSAwd8bow==}
@@ -3991,6 +3998,8 @@ snapshots:
       wrappy: 1.0.2
 
   dom-accessibility-api@0.5.16: {}
+
+  dotenv-expand@1000.0.0: {}
 
   dotenv@16.6.1: {}
 

@@ -21,6 +21,7 @@
   "dependencies": {
     "@prisma/client": "^5.22.0",
     "dotenv": "^16.4.5",
+    "dotenv-expand": "^1000.0.0",
     "express": "^4.21.1",
     "openai": "^7.53.0",
     "zod": "^3.23.8"

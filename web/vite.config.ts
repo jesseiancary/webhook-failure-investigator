@@ -66,13 +66,21 @@ function bundleBudget(budgetKb: number): Plugin {
 // Host `pnpm dev` reaches the server on localhost; the full-stack container (docker-compose) must
 // reach it over the compose network, so the target is overridable via WFI_API_PROXY_TARGET
 // (set to http://server:3000 in compose).
+// `||` (not `??`) so an explicitly-empty WFI_API_PROXY_TARGET also falls back to localhost rather
+// than proxying to an empty target.
 const API_TARGET =
-  process.env.WFI_API_PROXY_TARGET ?? `http://localhost:${process.env.PORT ?? 3000}`;
+  process.env.WFI_API_PROXY_TARGET || `http://localhost:${process.env.PORT ?? 3000}`;
+
+// Parse a boolean-ish env flag: `1` or `true` (case-insensitive) is on; everything else — including
+// `0`, `false`, empty, and unset — is off. A plain truthiness check would read `WFI_WATCH_POLLING=0`
+// as on, the opposite of intent.
+const envFlag = (value: string | undefined): boolean =>
+  value === '1' || value?.toLowerCase() === 'true';
 
 // Bind-mounted source on WSL2 doesn't reliably deliver inotify events into the container, so opt
-// into watch polling there (WFI_WATCH_POLLING=1, set in compose). Left off for host dev to keep the
-// native, lower-latency watcher.
-const WATCH_POLLING = process.env.WFI_WATCH_POLLING != null && process.env.WFI_WATCH_POLLING !== '';
+// into watch polling there (WFI_WATCH_POLLING, set to `true` in compose; `1` also accepted). Left
+// off for host dev to keep the native, lower-latency watcher.
+const WATCH_POLLING = envFlag(process.env.WFI_WATCH_POLLING);
 
 // Some client routes share a path with an API route (e.g. the `/events/:id` detail page vs. the
 // `GET /events/:id` endpoint). A browser *navigation* (Accept: text/html) to such a path must serve
