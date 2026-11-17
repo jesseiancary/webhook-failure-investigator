@@ -26,7 +26,7 @@ You review the pending changes on the current branch against the Webhook Failure
 1. **SSE lifecycle.** `streamChat` consumers (`web/src/lib/sse.ts`) must abort on unmount and handle a mid-stream error non-destructively — don't wipe already-streamed content. Follow the pattern in `web/src/components/chat-panel/`.
 2. **Async UI states.** Every data view needs loading, empty, and error+retry states (the Phase 7 routes set the bar). Flag a view that renders only the happy path.
 3. **No secrets to the client.** Nothing redacted server-side may reappear in the client bundle or be `console.log`-ed in the browser.
-4. **Contract drift.** `web/src/api/types.ts` hand-mirrors server response shapes (no compile-time guard yet). Flag a server shape change not mirrored here — point at the `sync-contract` skill.
+4. **Contract drift.** The web hand-mirrors the server's surface in two places with no compile-time guard: `web/src/api/types.ts` (response shapes) and `API_ROUTES` in `web/src/lib/api-proxy.ts` (the dev-proxy route list, which must match the routers mounted in `server/src/app.ts` — an anchored-RegExp key that under-matches a real route silently stops proxying it in dev). Flag a server route/shape change not reflected in both — point at the `sync-contract` skill for shapes.
 5. **Accessibility basics.** Inputs have labels, actions are keyboard-reachable, and badge color is never the only signal (the category/confidence badges carry text too).
 
 ## Correctness & craft checklist (every change)

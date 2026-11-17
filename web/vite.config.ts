@@ -4,6 +4,7 @@ import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import type { Plugin } from 'vite';
 import { defineConfig } from 'vitest/config';
+import { API_ROUTES, apiProxyKey } from './src/lib/api-proxy';
 
 // The gzipped weight of the shared boot payload every route pays: the entry chunk plus everything it
 // statically imports (the `vendor` chunk below). Lazy route/chat chunks are excluded — including the
@@ -57,17 +58,16 @@ function bundleBudget(budgetKb: number): Plugin {
   };
 }
 
-// The server runs on PORT (default 3000; see server/src/config/env.ts). We proxy the API routes to
-// it in dev so the browser only ever talks to the Vite origin — no CORS middleware on the server
-// (that's a Phase 10 hardening concern). Keep this list in sync with the mounted routers in
-// server/src/app.ts: /events, /investigations, /capture(+/-endpoints), /health.
+// The server runs on PORT (default 3000; see server/src/config/env.ts). We proxy the API routes
+// (API_ROUTES, defined alongside the matcher in src/lib/api-proxy.ts) to it in dev so the browser
+// only ever talks to the Vite origin — no CORS middleware on the server (that's a Phase 10 hardening
+// concern).
 //
 // Host `pnpm dev` reaches the server on localhost; the full-stack container (docker-compose) must
 // reach it over the compose network, so the target is overridable via WFI_API_PROXY_TARGET
 // (set to http://server:3000 in compose).
 const API_TARGET =
   process.env.WFI_API_PROXY_TARGET ?? `http://localhost:${process.env.PORT ?? 3000}`;
-const API_ROUTES = ['/events', '/investigations', '/capture', '/health'];
 
 // Bind-mounted source on WSL2 doesn't reliably deliver inotify events into the container, so opt
 // into watch polling there (WFI_WATCH_POLLING=1, set in compose). Left off for host dev to keep the
@@ -108,9 +108,15 @@ export default defineConfig({
     strictPort: true,
     // Opt-in polling for reliable file-watching when the source is bind-mounted into a container.
     watch: WATCH_POLLING ? { usePolling: true } : undefined,
+    // Each API route is keyed as an anchored RegExp (apiProxyKey → `^/events(/|$)`) rather than a
+    // bare string prefix, so a sibling client route that merely shares a prefix (e.g.
+    // `/events-archive`) is NOT captured by the proxy — while the real nested paths
+    // (`/events/:id/investigate`, `/capture/:token`, `/capture-endpoints`) still are. Vite treats a
+    // key starting with `^` as a RegExp; the full path is still forwarded (no rewrite), and `bypass`
+    // serves the SPA for navigations exactly as before.
     proxy: Object.fromEntries(
       API_ROUTES.map((route) => [
-        route,
+        apiProxyKey(route),
         { target: API_TARGET, changeOrigin: true, bypass: spaNavigationBypass },
       ]),
     ),
