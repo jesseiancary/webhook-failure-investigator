@@ -298,18 +298,26 @@ Deferred from the PR2 shell review. Each is gated on a trigger that hasn't fired
 **Goal:** A live, reasonably secure URL.
 **Skills demonstrated:** deployment, security awareness, ops.
 
+**Approach (decided):**
+
+- **Vendor: Railway** — Dockerfile-native deploys (`railway.json` points it at `server/Dockerfile`'s `runtime` target, kept last so it's the default build stage), one-click managed Postgres, private networking.
+- **Topology: single service** — the server serves the compiled web bundle on one origin (see the ticked Deploy items); no nginx, no CORS.
+- **Custom domain:** `wfi.jesseiancary.com` via a CNAME to the Railway target (subdomain → Railway auto-provisions TLS; requires a paid Railway plan; if DNS is on Cloudflare, set the record DNS-only during setup).
+- **Auth model: open demo + caps** — investigate/chat/manual-submit stay public, protected by per-IP rate limiting + a global daily OpenAI cost cap; a shared bearer token guards only `POST /capture-endpoints` (the one admin write). `POST /capture/:token` stays public by design (its path token is the guard).
+
 ### Deploy
 
-- [ ] Provision Railway/Render service + managed Postgres.
-- [ ] Configure env/secrets; run migrations on deploy.
-- [ ] Set up a production build for `/web` served by or alongside the API.
+- [ ] Provision the Railway service + managed Postgres.
+- [ ] Configure env/secrets (OpenAI key, `DATABASE_URL` reference, `NODE_ENV=production`, admin token, cost-cap vars; leave `WFI_FAKE_LLM` unset).
+- [x] Run migrations on deploy. _(The `runtime` image's prod entrypoint (`server/docker-entrypoint.prod.sh`) runs `prisma migrate deploy` before booting — never seeds. Verified in a local prod-image smoke; also exposed as `pnpm --filter server migrate:deploy`.)_
+- [x] Set up a production build for `/web` served by or alongside the API. _(Single-service: the `runtime` image builds `web/dist`, and the server serves it on one origin via `express.static` + an `Accept: text/html` SPA navigation bypass mirroring the dev proxy. No separate web host, no CORS. Verified in a local prod-image smoke; the stubbed `web/Dockerfile` nginx target is now unused.)_
 
 ### Hardening
 
-- [ ] Verify secret/header redaction in both storage and logs.
-- [ ] Add rate limiting on public endpoints.
-- [ ] Add a lightweight auth gate on write endpoints.
-- [ ] Set OpenAI usage/cost guardrails (per-request + daily cap).
+- [ ] Verify secret/header redaction in both storage and logs. _(Storage is covered by `server/src/ingest/redact.ts`; logs are the gap — add structured logging (pino) with redacted header paths and keep error logs to message + stack, never dumping `req.body`/`req.headers`.)_
+- [ ] Add rate limiting on public endpoints. _(`express-rate-limit`, tiered: stricter on the paid investigate/chat endpoints and the public capture ingest. Set `trust proxy` so client IPs are correct behind Railway's edge.)_
+- [ ] Add a lightweight auth gate on write endpoints. _(Shared bearer token on `POST /capture-endpoints` only, per the open-demo model above; no-op when the token env var is unset so local dev/tests are unaffected.)_
+- [ ] Set OpenAI usage/cost guardrails (per-request + daily cap). _(Per-request via `max_output_tokens`; global daily cap by summing today's `Investigation` + `InvestigationMessage` `costUsd` and refusing the paid endpoints once over — reuses the existing per-call cost accounting; back it with a provider-side monthly budget in the OpenAI dashboard.)_
 
 ### Verification
 

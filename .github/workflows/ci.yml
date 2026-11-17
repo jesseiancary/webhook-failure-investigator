@@ -254,3 +254,26 @@ jobs:
 
       - name: No raw secrets in seed/fixture/snapshot data
         run: ./scripts/ci/check-secret-redaction.sh
+
+  docker-build:
+    name: Production image build
+    runs-on: ubuntu-latest
+    # The Phase 10 deploy-enablement guard (docs/planned-ci.md: docker-build). Builds the
+    # server/Dockerfile `runtime` target — the single-service deploy image (API + compiled web bundle,
+    # migrate-on-boot entrypoint) that Railway builds. Catches Dockerfile breakage (COPY paths, stage
+    # order, the web build) on every PR. Build only: no registry push (deploys are Railway-driven, not
+    # GitHub Actions) and no container boot, so it needs no Postgres and no secrets. GHA layer caching
+    # keeps the workspace install + web build off the critical path on repeat runs.
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: Build the runtime image (no push)
+        uses: docker/build-push-action@v6
+        with:
+          # Context is the repo root: the pnpm workspace install needs the root lockfile + all manifests.
+          context: .
+          file: server/Dockerfile
+          target: runtime
+          push: false
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
