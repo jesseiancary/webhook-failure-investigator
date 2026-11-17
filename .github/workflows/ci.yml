@@ -233,7 +233,7 @@ jobs:
         run: jq empty .claude/settings.json
 
       - name: Shellcheck hooks and CI scripts
-        run: shellcheck .claude/hooks/*.sh scripts/ci/*.sh
+        run: shellcheck .claude/hooks/*.sh scripts/ci/*.sh server/docker-entrypoint.sh
 
       - name: Hooks no-op cleanly on irrelevant input
         run: |

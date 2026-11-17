@@ -61,8 +61,18 @@ function bundleBudget(budgetKb: number): Plugin {
 // it in dev so the browser only ever talks to the Vite origin — no CORS middleware on the server
 // (that's a Phase 10 hardening concern). Keep this list in sync with the mounted routers in
 // server/src/app.ts: /events, /investigations, /capture(+/-endpoints), /health.
-const API_TARGET = `http://localhost:${process.env.PORT ?? 3000}`;
+//
+// Host `pnpm dev` reaches the server on localhost; the full-stack container (docker-compose) must
+// reach it over the compose network, so the target is overridable via WFI_API_PROXY_TARGET
+// (set to http://server:3000 in compose).
+const API_TARGET =
+  process.env.WFI_API_PROXY_TARGET ?? `http://localhost:${process.env.PORT ?? 3000}`;
 const API_ROUTES = ['/events', '/investigations', '/capture', '/health'];
+
+// Bind-mounted source on WSL2 doesn't reliably deliver inotify events into the container, so opt
+// into watch polling there (WFI_WATCH_POLLING=1, set in compose). Left off for host dev to keep the
+// native, lower-latency watcher.
+const WATCH_POLLING = process.env.WFI_WATCH_POLLING != null && process.env.WFI_WATCH_POLLING !== '';
 
 // Some client routes share a path with an API route (e.g. the `/events/:id` detail page vs. the
 // `GET /events/:id` endpoint). A browser *navigation* (Accept: text/html) to such a path must serve
@@ -96,6 +106,8 @@ export default defineConfig({
     // Pinned so the proxy target, docs, and the Phase 7 e2e all agree on one dev URL.
     port: 5173,
     strictPort: true,
+    // Opt-in polling for reliable file-watching when the source is bind-mounted into a container.
+    watch: WATCH_POLLING ? { usePolling: true } : undefined,
     proxy: Object.fromEntries(
       API_ROUTES.map((route) => [
         route,

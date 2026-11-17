@@ -16,5 +16,67 @@ services:
       timeout: 5s
       retries: 10
 
+  # Full-stack dev containers. `docker compose up` runs postgres + server + web; for the fast host
+  # loop run `docker compose up -d postgres` and `pnpm dev` on the host instead (see README).
+  server:
+    build:
+      context: .
+      dockerfile: server/Dockerfile
+      target: dev
+    restart: unless-stopped
+    # Loads OPENAI_API_KEY (+ any WFI_*/POSTGRES_* overrides) from the repo-root .env when present.
+    # Optional: the `environment` block below supplies everything the default fake-mode stack needs,
+    # so `docker compose up` works with no .env at all (offline, no key). Create .env only for live
+    # (non-fake) diagnosis or to override the Postgres defaults.
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      # Container-network DB host is the compose service name `postgres`, not localhost.
+      DATABASE_URL: postgresql://${POSTGRES_USER:-wfi}:${POSTGRES_PASSWORD:-wfi_dev_password}@postgres:5432/${POSTGRES_DB:-wfi}?schema=public
+      NODE_ENV: development
+      # The app listens on PORT (server/src/config/env.ts). Keep the container port, the host mapping
+      # below, and the web proxy target all driven by the SAME value so PORT stays one consistent knob.
+      PORT: '${PORT:-3000}'
+      # Deterministic, no-key, no-spend by default so the full-stack verification runs offline.
+      # Unset this (and set a real OPENAI_API_KEY) to exercise live diagnosis.
+      WFI_FAKE_LLM: ${WFI_FAKE_LLM:-1}
+      # Reliable file-watching across the WSL2 bind-mount.
+      CHOKIDAR_USEPOLLING: 'true'
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - '${PORT:-3000}:${PORT:-3000}'
+    volumes:
+      # Bind-mount source for hot reload; named volumes shadow the container's installed node_modules
+      # so the host tree never clobbers the image's linux install.
+      - ./:/app
+      - wfi_root_node_modules:/app/node_modules
+      - wfi_server_node_modules:/app/server/node_modules
+
+  web:
+    build:
+      context: .
+      dockerfile: web/Dockerfile
+      target: dev
+    restart: unless-stopped
+    environment:
+      # The Vite dev proxy must reach the server over the compose network, not localhost. Follows the
+      # same PORT as the server service so a customized PORT stays consistent end to end.
+      WFI_API_PROXY_TARGET: http://server:${PORT:-3000}
+      WFI_WATCH_POLLING: 'true'
+    depends_on:
+      - server
+    ports:
+      - '5173:5173'
+    volumes:
+      - ./:/app
+      - wfi_root_node_modules:/app/node_modules
+      - wfi_web_node_modules:/app/web/node_modules
+
 volumes:
   wfi_pgdata:
+  wfi_root_node_modules:
+  wfi_server_node_modules:
+  wfi_web_node_modules:

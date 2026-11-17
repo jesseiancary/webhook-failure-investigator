@@ -264,29 +264,29 @@ Deferred from the PR2 shell review. Each is gated on a trigger that hasn't fired
 
 ### Service images
 
-- [ ] `server/Dockerfile` — multi-stage (deps → build → slim runtime on `node:22-alpine`), runs as a non-root user, boots `dist/index.js`.
-- [ ] `web/Dockerfile` — a dev target (Vite dev server) now; stub a production static/nginx target to be finished in Phase 10.
-- [ ] Per-workspace `.dockerignore` (exclude `node_modules`, `dist`, `.env`, coverage).
+- [x] `server/Dockerfile` — multi-stage (deps → build → slim runtime on `node:22-alpine`), runs as a non-root user, boots `dist/index.js`.
+- [x] `web/Dockerfile` — a dev target (Vite dev server) now; stub a production static/nginx target to be finished in Phase 10.
+- [x] Per-workspace `.dockerignore` (exclude `node_modules`, `dist`, `.env`, coverage). _(Consolidated to a single root `.dockerignore`: both images build from the repo-root context (pnpm workspace needs the root lockfile + all manifests), where only a context-root `.dockerignore` takes effect — per-workspace files would be inert. Same exclusions.)_
 
 ### Compose orchestration
 
-- [ ] Add `server` and `web` services to `docker-compose.yml`, networked to `postgres`.
-- [ ] Gate app startup on DB health: `depends_on: postgres: { condition: service_healthy }`.
-- [ ] Container-network `DATABASE_URL` (host `postgres`, not `localhost`); load env via `env_file`.
-- [ ] Preserve hot-reload in-container: bind-mount source + a named volume for `node_modules`; enable watch polling for reliable file-watching on WSL2.
-- [ ] Keep the Postgres-only path available (compose profile or `docker-compose.override.yml`) so host `pnpm dev` still works.
+- [x] Add `server` and `web` services to `docker-compose.yml`, networked to `postgres`.
+- [x] Gate app startup on DB health: `depends_on: postgres: { condition: service_healthy }`.
+- [x] Container-network `DATABASE_URL` (host `postgres`, not `localhost`); load env via `env_file`.
+- [x] Preserve hot-reload in-container: bind-mount source + a named volume for `node_modules`; enable watch polling for reliable file-watching on WSL2.
+- [x] Keep the Postgres-only path available (compose profile or `docker-compose.override.yml`) so host `pnpm dev` still works. _(No profile/override needed: `docker compose up -d postgres` starts just the DB; the full stack is the bare-`up` default. `pnpm docker:db` wraps it.)_
 
 ### Docs & parity
 
-- [ ] README: document `docker compose up` (full stack) vs. host `pnpm dev`, and the container vs. host `DATABASE_URL`.
-- [ ] `.env.example`: distinguish host (`localhost`) from container (`postgres`) `DATABASE_URL`.
+- [x] README: document `docker compose up` (full stack) vs. host `pnpm dev`, and the container vs. host `DATABASE_URL`.
+- [x] `.env.example`: distinguish host (`localhost`) from container (`postgres`) `DATABASE_URL`.
 
 ### Verification
 
-- [ ] `docker compose up` brings up postgres + server + web; `curl localhost:3000/health` returns `{"status":"ok"}` from the container.
-- [ ] The containerized server connects to the containerized Postgres and runs a seeded investigation end to end.
-- [ ] Editing a `.ts`/`.tsx` source file hot-reloads inside the container.
-- [ ] `docker compose down -v` cleans up; the host `pnpm dev` path still works.
+- [x] `docker compose up` brings up postgres + server + web; `curl localhost:3000/health` returns `{"status":"ok"}` from the container.
+- [x] The containerized server connects to the containerized Postgres and runs a seeded investigation end to end.
+- [x] Editing a `.ts`/`.tsx` source file hot-reloads inside the container.
+- [x] `docker compose down -v` cleans up; the host `pnpm dev` path still works.
 
 ---
 
