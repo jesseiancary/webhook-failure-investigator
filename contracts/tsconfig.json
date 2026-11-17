@@ -1,0 +1,21 @@
+{
+  "extends": "../tsconfig.base.json",
+  "compilerOptions": {
+    // NodeNext (overriding the base's Bundler) on purpose: this package is consumed by the server
+    // under NodeNext resolution, so emit/typecheck it the same way — it enforces the `.js` extension
+    // discipline the src/*.ts files already use and keeps the `exports` map resolvable there. Do NOT
+    // "fix" this back to Bundler per the stale plan note; Bundler would let extensionless specifiers
+    // slip into the emitted .d.ts and break the NodeNext consumer.
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "lib": ["ES2022"],
+    // Not a TS project reference (consumed as an ordinary built package via `exports`→`dist`), so
+    // turn off composite/incremental: no `.tsbuildinfo` means `tsc` can never skip emit against a
+    // stale cache and leave `dist/` missing. `declaration` (from the base) still emits the `.d.ts`.
+    "composite": false,
+    "incremental": false,
+    "outDir": "dist",
+    "rootDir": "src"
+  },
+  "include": ["src"]
+}

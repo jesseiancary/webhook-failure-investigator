@@ -1,34 +1,11 @@
 import { z } from 'zod';
 
-// Shared ingest schemas. Per CLAUDE.md's "single-source shapes" rule these Zod schemas are
-// the one definition of the manual-submission contract — reused by API validation now and by
-// the Phase 4 OpenAI structured-output contract later. Do not duplicate these shapes elsewhere.
-
-/** A header map: string names to a string value or a list of values (e.g. Set-Cookie). */
-export const HeadersSchema = z.record(z.string(), z.union([z.string(), z.array(z.string())]));
-
-/** One delivery attempt for an event — the request made and the response (or error) observed. */
-export const AttemptSchema = z.object({
-  requestUrl: z.string().url(),
-  requestMethod: z.string().min(1),
-  requestHeaders: HeadersSchema,
-  requestBody: z.unknown().optional(),
-  responseStatus: z.number().int().optional(),
-  responseHeaders: HeadersSchema.optional(),
-  responseBody: z.unknown().optional(),
-  latencyMs: z.number().int().nonnegative().optional(),
-  errorText: z.string().optional(),
-  attemptedAt: z.coerce.date().optional(),
-});
-
-/** The `POST /events` body: an inbound event plus one or more delivery attempts. */
-export const ManualSubmissionSchema = z.object({
-  source: z.string().min(1),
-  eventType: z.string().min(1),
-  payload: z.unknown(),
-  headers: HeadersSchema,
-  attempts: z.array(AttemptSchema).min(1),
-});
+// The manual-submission contract (headers, attempts, event body) now lives in @wfi/contracts, shared
+// with the web submission form. Re-exported here under the server's historical module path so
+// existing importers are unchanged. The live-capture endpoint schema below is server-internal (the
+// web UI never mints capture endpoints), so it stays local.
+export { HeadersSchema, AttemptSchema, ManualSubmissionSchema } from '@wfi/contracts';
+export type { Headers, Attempt, ManualSubmission } from '@wfi/contracts';
 
 /** Body for minting a live-capture endpoint (`POST /capture-endpoints`). Both fields optional. */
 export const CaptureEndpointInputSchema = z.object({
@@ -36,7 +13,4 @@ export const CaptureEndpointInputSchema = z.object({
   name: z.string().min(1).optional(),
 });
 
-export type Headers = z.infer<typeof HeadersSchema>;
-export type Attempt = z.infer<typeof AttemptSchema>;
-export type ManualSubmission = z.infer<typeof ManualSubmissionSchema>;
 export type CaptureEndpointInput = z.infer<typeof CaptureEndpointInputSchema>;

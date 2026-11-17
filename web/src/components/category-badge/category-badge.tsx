@@ -1,5 +1,5 @@
 import type { ComponentProps } from 'react';
-import type { FailureCategory } from '../../api/types';
+import type { FailureCategory } from '@wfi/contracts';
 import { Badge } from '../ui/badge';
 
 // Presents a failure-taxonomy value as a readable, consistently-styled badge. The label and visual

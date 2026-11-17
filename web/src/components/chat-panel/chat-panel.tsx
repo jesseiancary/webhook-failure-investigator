@@ -1,6 +1,6 @@
 import { Send } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import type { InvestigationMessage } from '../../api/types';
+import type { InvestigationMessage } from '@wfi/contracts';
 import { ApiError } from '../../api/client';
 import { formatCost } from '../../lib/format';
 import { streamChat } from '../../lib/sse';

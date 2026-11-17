@@ -5,7 +5,7 @@ import type {
   InvestigationRecord,
   InvestigationSummary,
   ManualSubmissionInput,
-} from './types';
+} from '@wfi/contracts';
 
 // A thin typed wrapper over fetch. Paths are relative ('/events', …), so in dev they hit the Vite
 // proxy (see vite.config.ts) and in a same-origin deployment they hit the API directly — no base-URL

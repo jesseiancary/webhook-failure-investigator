@@ -1,48 +1,15 @@
-// Response shapes returned by the server API, as they appear over the wire (JSON): `DateTime` →
-// ISO string, Prisma `Decimal` (costUsd) → string, `Json` columns → unknown.
+// Response shapes returned by the server API, as they appear over the wire (JSON): Prisma `DateTime`
+// → ISO string, Prisma `Decimal` (costUsd) → string, `Json` columns → unknown.
 //
-// Single-source intent (CLAUDE.md): the canonical definitions live in the server's Zod schemas
-// (server/src/diagnosis/diagnosis.schema.ts, server/src/ingest/schemas.ts) and Prisma models. A
-// direct cross-workspace `import type` is awkward here — the server uses NodeNext `.js` specifiers
-// and isn't published as a package, and web's `rootDir: src` rejects importing files above it — so
-// these mirror only the *response* shapes the UI consumes. Keep them in lockstep with the server;
-// the integration tests there are the contract of record.
-//
-// TODO(phase-7+): this mirror is an accepted tradeoff, not a verified dead end — a direct import
-// was not spiked. If web/server drift becomes a problem, revisit via a shared `@wfi/contracts`
-// package (the Zod schemas + inferred types) that both workspaces import, rather than widening the
-// build graph ad hoc. No compile-time guard links these to the server today.
+// These are the canonical definition of the HTTP response contract the web UI consumes. They are
+// deliberately hand-written interfaces, NOT `z.infer`'d: the shapes above have no input Zod schema —
+// they're produced by Prisma projections in the server services and serialized by Express's
+// `res.json` (which invokes `Decimal.prototype.toJSON()` / `Date.prototype.toISOString()`). Keep them
+// in lockstep with those projections (server/src/ingest/events.service.ts and
+// server/src/diagnosis/diagnosis.service.ts); the server integration tests are the contract of record.
 
-/** The failure taxonomy (mirrors FAILURE_CATEGORIES / the Prisma `FailureCategory` enum). */
-export type FailureCategory =
-  | 'authentication'
-  | 'payload_validation'
-  | 'timeout'
-  | 'network_failure'
-  | 'rate_limit'
-  | 'server_error'
-  | 'application_logic'
-  | 'insufficient_evidence';
-
-export type Reachability = 'reachable' | 'unreachable' | 'unknown';
-
-/** One grounded citation (mirrors EvidenceSchema). */
-export interface Evidence {
-  field: string;
-  value: string;
-  note: string;
-}
-
-/** A structured, grounded diagnosis (mirrors DiagnosisSchema). */
-export interface Diagnosis {
-  failureCategory: FailureCategory;
-  rootCause: string;
-  confidence: number;
-  evidence: Evidence[];
-  remediationSteps: string[];
-  reachabilityAssessment: Reachability;
-  isSpeculative: boolean;
-}
+import type { Diagnosis } from './diagnosis.schema.js';
+import type { FailureCategory } from './failure-category.js';
 
 /** One delivery attempt, redacted server-side (mirrors the DeliveryAttempt model). */
 export interface DeliveryAttempt {
@@ -134,7 +101,11 @@ export interface Investigation extends InvestigationRecord {
   messages: InvestigationMessage[];
 }
 
-/** The request body for `POST /events` (mirrors ManualSubmissionSchema). */
+/**
+ * The request body for `POST /events` (the client-constructed JSON, mirroring ManualSubmissionSchema).
+ * Hand-written rather than `z.infer`'d because the wire form carries dates as ISO strings, whereas the
+ * server schema's `z.coerce.date()` parses them to `Date` on the way in.
+ */
 export interface ManualSubmissionInput {
   source: string;
   eventType: string;

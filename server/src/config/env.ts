@@ -1,19 +1,17 @@
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { config as loadDotenv } from 'dotenv';
-import { expand } from 'dotenv-expand';
 
 // Load the single repo-root .env regardless of cwd. Run commands execute with
 // cwd = server/ (pnpm --filter / -r), so a bare loadDotenv() would miss the root
 // file. This module lives three levels below the root under both tsx (src/config)
-// and compiled dist (dist/config). Values already in process.env (shell/CI) win.
+// and compiled dist (dist/config).
 //
-// expand() resolves `${VAR}` references within the .env (e.g. DATABASE_URL embeds
-// ${POSTGRES_PORT}), so the host-run DB port is single-sourced. It respects the same
-// precedence — a value already in process.env (the compose `environment:` DATABASE_URL
-// override, shell, CI) is not clobbered. Caveat: a literal `$` in a value must be escaped `\$`.
+// Values are loaded literally (no `${VAR}` interpolation) and a value already in
+// process.env (the compose `environment:` DATABASE_URL override, shell, CI) is not
+// clobbered — dotenv never overrides a pre-set variable.
 const repoRootEnv = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../.env');
-expand(loadDotenv({ path: repoRootEnv }));
+loadDotenv({ path: repoRootEnv });
 
 type NodeEnv = 'development' | 'test' | 'production';
 

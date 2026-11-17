@@ -11,7 +11,7 @@ import type {
   Evidence,
   Investigation,
   Reachability,
-} from '../api/types';
+} from '@wfi/contracts';
 import { CategoryBadge } from '../components/category-badge';
 import { ConfidenceBadge } from '../components/confidence-badge';
 import { Badge } from '../components/ui/badge';
