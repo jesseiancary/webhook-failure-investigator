@@ -115,6 +115,25 @@ Convenience scripts that front the multi-step container/database sequences:
 > package. Run `pnpm docker:refresh` after editing `package.json`/`pnpm-lock.yaml`. It preserves your
 > Postgres data; `docker compose down -v` would also wipe that.
 
+### Don't source `.env` into your shell
+
+The app loads `.env` itself (via dotenv in `server/src/config/env.ts`), and `docker compose` reads it
+directly — nothing you run by hand needs those vars exported. **Do not** `set -a; . ./.env` or
+`export` its contents into your interactive shell: dotenv never overrides a variable already present
+in the environment, so a stale export silently wins over the file. Two ways this bites:
+
+- A leftover `DATABASE_URL` makes the app ignore the port in `.env` and connect to the wrong Postgres.
+- A leftover **`NODE_ENV=development` makes `pnpm build` produce a development bundle** (React & friends
+  ship larger dev builds), which fails the web bundle-budget gate with a confusing "Initial-load JS
+  budget exceeded" error.
+
+If a build or DB connection behaves unexpectedly, check the shell is clean and clear any leftovers:
+
+```bash
+env | grep -E 'NODE_ENV|DATABASE_URL|POSTGRES'   # expect no output for host dev
+unset NODE_ENV DATABASE_URL                       # or just open a fresh terminal
+```
+
 ## Layout
 
 ```
