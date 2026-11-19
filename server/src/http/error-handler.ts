@@ -1,4 +1,5 @@
 import type { NextFunction, Request, RequestHandler, Response } from 'express';
+import OpenAI from 'openai';
 import { DailyBudgetExceededError } from '../diagnosis/cost-guard.js';
 import { logger } from '../logging/logger.js';
 
@@ -50,6 +51,24 @@ export function errorHandler(
   if (err instanceof DailyBudgetExceededError) {
     logger.info({ spentUsd: err.spentUsd, capUsd: err.capUsd }, 'daily cost cap reached');
     res.status(429).json({ error: 'DailyBudgetReached', message: err.message });
+    return;
+  }
+
+  // An error from the OpenAI SDK (auth, rate limit, connection, or 5xx) is an UPSTREAM dependency
+  // failure — not a fault in the caller's request. Surface it as a 502 so it isn't mislabeled a
+  // client error: `clientErrorStatus` below would otherwise pass OpenAI's 4xx (e.g. a 401 from a
+  // bad OPENAI_API_KEY) straight through as a confusing `BadRequest`. The upstream status/type is
+  // logged for operators; the error's message is deliberately not logged or echoed, so no key
+  // fragment OpenAI may include in it can leak.
+  if (err instanceof OpenAI.APIError) {
+    logger.error(
+      { err: { status: err.status, type: err.type, code: err.code } },
+      'openai upstream error',
+    );
+    res.status(502).json({
+      error: 'UpstreamServiceError',
+      message: 'The diagnosis service is temporarily unavailable. Please try again shortly.',
+    });
     return;
   }
 

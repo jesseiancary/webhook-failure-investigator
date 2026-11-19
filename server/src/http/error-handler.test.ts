@@ -1,4 +1,5 @@
 import type { NextFunction, Request, Response } from 'express';
+import OpenAI from 'openai';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { DailyBudgetExceededError } from '../diagnosis/cost-guard.js';
 import { logger } from '../logging/logger.js';
@@ -72,6 +73,28 @@ describe('errorHandler', () => {
 
     expect(res.statusCode).toBe(500);
     expect(res.body).toEqual({ error: 'InternalServerError' });
+  });
+
+  it('maps an OpenAI APIError to a 502 upstream error, not a client BadRequest', () => {
+    const errorSpy = vi.spyOn(logger, 'error').mockImplementation(() => undefined);
+    const res = mockRes();
+    // A 401 from a bad OPENAI_API_KEY: its 4xx status must NOT leak through as `BadRequest`.
+    const err = new OpenAI.APIError(
+      401,
+      { type: 'invalid_request_error', code: 'invalid_api_key' },
+      'Incorrect API key provided',
+      undefined,
+    );
+
+    errorHandler(err, req, res, next);
+
+    expect(res.statusCode).toBe(502);
+    expect(res.body).toEqual({
+      error: 'UpstreamServiceError',
+      message: 'The diagnosis service is temporarily unavailable. Please try again shortly.',
+    });
+    // It is a genuine upstream fault — logged — but the error's message is never echoed to the client.
+    expect(errorSpy).toHaveBeenCalledOnce();
   });
 
   it('renders a DailyBudgetExceededError as a friendly 429 with a verbatim message (not a fault)', () => {
