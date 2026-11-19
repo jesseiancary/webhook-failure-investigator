@@ -47,6 +47,7 @@ Full rationale lives in [docs/PLAN.md](docs/PLAN.md); the phased build checklist
 - **LLM calls:** always record `model`, `promptTokens`, `completionTokens`, and `costUsd` on the resulting `Investigation`.
 - **Naming:** `camelCase` for variables/functions, `PascalCase` for types and Prisma models, `kebab-case` for file names, `SCREAMING_SNAKE_CASE` for env vars.
 - **Failure taxonomy (enum):** `authentication`, `payload_validation`, `timeout`, `network_failure`, `rate_limit`, `server_error`, `application_logic`, `insufficient_evidence`.
+- **Never source `.env` into the shell.** The app loads it via dotenv (`server/src/config/env.ts`) and `docker compose` reads it directly — nothing run by hand needs those vars exported. dotenv won't override an already-set variable, so a stale `set -a; . ./.env` / `export` silently wins over the file: a leftover `DATABASE_URL` connects to the wrong Postgres, and a leftover `NODE_ENV=development` makes `pnpm build` emit a dev bundle that fails the web bundle-budget gate. If a build or DB connection misbehaves, check `env | grep -E 'NODE_ENV|DATABASE_URL|POSTGRES'` is empty for host dev and `unset` any leftovers.
 
 ## Commands
 
