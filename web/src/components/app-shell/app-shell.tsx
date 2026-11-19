@@ -42,6 +42,11 @@ export function AppShell() {
           </div>
         </div>
       </header>
+      {/* This `mx-auto max-w-6xl` is the single source of page width — it matches the header's
+          container above so every view lines up with the brand/nav. Route components render
+          straight into this outlet and must NOT add their own `mx-auto`/`max-w-*` page wrapper
+          (that's what made /submit render narrower than the others); use a plain `space-y-*`
+          wrapper instead. Change the width here, in one place, if it ever needs to change. */}
       <main className="mx-auto max-w-6xl px-4 py-8">
         {/* One Suspense boundary for the lazy-loaded route components (see src/router.tsx). */}
         <Suspense fallback={<RouteFallback />}>
