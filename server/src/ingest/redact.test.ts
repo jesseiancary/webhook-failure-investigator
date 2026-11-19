@@ -56,6 +56,21 @@ describe('redactHeaders', () => {
     expect(redactHeaders(headers)).toEqual(headers);
   });
 
+  it('redacts a credential-shaped value under an innocuous header name', () => {
+    expect(
+      redactHeaders({
+        'X-Custom': 'whsec_0123456789abcdef',
+        'X-Trace': 'Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.abcDEF123',
+      }),
+    ).toEqual({ 'X-Custom': REDACTED, 'X-Trace': REDACTED });
+  });
+
+  it('redacts an array-valued header when any element looks like a credential', () => {
+    expect(redactHeaders({ 'X-Multi': ['ok', 'sk-proj-ABCDEFGHIJKLMNOP1234'] })).toEqual({
+      'X-Multi': REDACTED,
+    });
+  });
+
   it('does not mutate the input', () => {
     const input = { Authorization: 'Bearer x' };
     redactHeaders(input);
@@ -101,6 +116,38 @@ describe('redactJson', () => {
       tokenCount: 3,
       signatureValid: true,
     });
+  });
+
+  it('redacts a credential-shaped value under a non-denylisted key', () => {
+    // The key name is unknown to the denylist; the VALUE shape is what triggers redaction.
+    expect(
+      redactJson({
+        charge_token: 'sk-live-ABCDEFGHIJKLMNOP1234',
+        webhook_signing_key: 'whsec_0123456789abcdef',
+        xAuth: 'Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjMifQ.abcDEF123456',
+      }),
+    ).toEqual({ charge_token: REDACTED, webhook_signing_key: REDACTED, xAuth: REDACTED });
+  });
+
+  it('redacts credential-shaped values nested in objects and arrays', () => {
+    expect(
+      redactJson({
+        meta: { trace: 'ghp_ABCDEFGHIJKLMNOPQRSTUVWXYZ012345' },
+        keys: ['xoxb-abc-123def'],
+      }),
+    ).toEqual({ meta: { trace: REDACTED }, keys: [REDACTED] });
+  });
+
+  it('preserves random-looking IDs that are legitimate evidence (no entropy scoring)', () => {
+    // Event / request / idempotency IDs look random but are NOT credentials — redacting them
+    // would starve the grounded diagnosis. Value matching is prefix/shape-based, not entropy.
+    const evidence = {
+      event_id: 'evt_1Qx8Zk2eZvKYlo2C0aBcDeFg',
+      request_id: 'req_7f3a9c2b4d5e6f70',
+      idempotency_key: '9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d',
+      amount: 4200,
+    };
+    expect(redactJson(evidence)).toEqual(evidence);
   });
 
   it('passes non-object values through unchanged', () => {
