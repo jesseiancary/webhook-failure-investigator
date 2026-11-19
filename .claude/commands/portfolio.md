@@ -12,7 +12,7 @@ never a stub, never aspirational about things that don't exist.
 
 1. **`CLAUDE.md`** (repo root) — the project's purpose, architecture, conventions, and tech stack.
 2. **`docs/ROADMAP.md`** — the phased build history. Treat **checked (`- [x]`)** items as done
-   and **unchecked (`- [ ]`)** items as *not yet built*. Never describe an unchecked item as
+   and **unchecked (`- [ ]`)** items as _not yet built_. Never describe an unchecked item as
    complete.
 3. Then explore the repo as needed to ground specifics: `package.json`(s) for the real
    dependency list, the directory layout, and any `docs/PLAN.md` or similar for rationale.
@@ -106,6 +106,8 @@ naming the transferable skills it demonstrates.>
   within a paragraph or bullet. (The template above shows prose wrapped for readability;
   the generated file must not wrap it.) Blank lines still separate paragraphs and sections.
 - Use a plain hyphen `-` (not an em dash) for inline asides, matching the existing file.
+- In the YAML frontmatter, when a value must be quoted (e.g. it starts with `@` or contains a
+  colon), use **single quotes**, not double — e.g. `'@wfi/contracts shared Zod package'`.
 - Keep bullets tight and specific; name real modules, endpoints, schemas, and tools rather
   than generic claims.
 - Do not invent metrics, dates, or URLs. Leave a field blank rather than guessing.

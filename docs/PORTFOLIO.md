@@ -48,7 +48,7 @@ techStack:
   - label: Architecture
     items:
       - pnpm monorepo
-      - "@wfi/contracts shared Zod package"
+      - '@wfi/contracts shared Zod package'
 featured: true
 order: 1
 date: 2026-11-19
