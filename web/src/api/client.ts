@@ -16,6 +16,8 @@ import type {
 export interface ApiErrorBody {
   error: string;
   details?: unknown;
+  /** A human-readable message for errors meant to be shown verbatim (e.g. the daily-budget 429). */
+  message?: string;
 }
 
 export class ApiError extends Error {
@@ -24,6 +26,12 @@ export class ApiError extends Error {
   readonly code: string;
   /** Field-level detail for a ValidationError (Zod `flatten()` output), when present. */
   readonly details?: unknown;
+  /**
+   * The server's human-readable message, when the envelope carried one (e.g. 'DailyBudgetReached').
+   * Prefer this over the `code (status)` form in user-facing error states. Undefined for the many
+   * errors whose stable `code` is the only intended signal.
+   */
+  readonly serverMessage?: string;
 
   constructor(status: number, body: ApiErrorBody) {
     super(`${body.error} (${status})`);
@@ -31,6 +39,7 @@ export class ApiError extends Error {
     this.status = status;
     this.code = body.error;
     this.details = body.details;
+    this.serverMessage = body.message;
   }
 }
 

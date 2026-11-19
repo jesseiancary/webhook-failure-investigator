@@ -1,4 +1,6 @@
 import type { NextFunction, Request, RequestHandler, Response } from 'express';
+import { DailyBudgetExceededError } from '../diagnosis/cost-guard.js';
+import { logger } from '../logging/logger.js';
 
 /**
  * Wrap an async route handler so rejected promises reach Express's error pipeline instead of
@@ -31,10 +33,11 @@ function clientErrorStatus(err: unknown): number | undefined {
 /**
  * Terminal error middleware. Client errors thrown upstream — malformed JSON (400) or an oversized
  * body (413) from `express.json` — are reported with their own 4xx status; everything else is a
- * 500. Internal error detail is never echoed to the response. Detailed logging (pino) arrives in a
- * later phase; for now only genuine 5xx faults are logged so expected client errors don't masquerade
- * as server faults. All four parameters are kept so Express treats this as an error handler
- * (unused ones are `_`-prefixed to satisfy noUnusedParameters).
+ * 500. Internal error detail is never echoed to the response. Only genuine 5xx faults are logged
+ * (via the shared pino logger) so expected client errors don't masquerade as server faults; the log
+ * carries the error's message + stack only — never `req.body`/`req.headers` — so no payload or auth
+ * material can ride along in a fault log (Phase 10, B8). All four parameters are kept so Express
+ * treats this as an error handler (unused ones are `_`-prefixed to satisfy noUnusedParameters).
  */
 export function errorHandler(
   err: unknown,
@@ -42,11 +45,22 @@ export function errorHandler(
   res: Response,
   _next: NextFunction,
 ): void {
+  // The daily demo budget is exhausted (Phase 10, B7): a friendly 429 in the standard envelope, with a
+  // human-readable `message` the UI surfaces directly. Not a fault — logged at info, not error.
+  if (err instanceof DailyBudgetExceededError) {
+    logger.info({ spentUsd: err.spentUsd, capUsd: err.capUsd }, 'daily cost cap reached');
+    res.status(429).json({ error: 'DailyBudgetReached', message: err.message });
+    return;
+  }
+
   const status = clientErrorStatus(err);
   if (status !== undefined) {
     res.status(status).json({ error: CLIENT_ERROR_LABELS[status] ?? 'BadRequest' });
     return;
   }
-  console.error(err);
+  logger.error(
+    err instanceof Error ? { err: { message: err.message, stack: err.stack } } : { err },
+    'unhandled request error',
+  );
   res.status(500).json({ error: 'InternalServerError' });
 }

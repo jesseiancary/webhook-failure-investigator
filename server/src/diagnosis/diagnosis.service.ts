@@ -1,6 +1,7 @@
 import { Prisma } from '@prisma/client';
 import { prisma } from '../db/client.js';
 import { getEventById } from '../ingest/events.service.js';
+import { assertDailyBudgetAvailable } from './cost-guard.js';
 import type { Diagnosis } from './diagnosis.schema.js';
 import {
   createOpenAIDiagnosisClient,
@@ -63,6 +64,11 @@ export async function investigateEvent(
   if (event === null) {
     return null;
   }
+
+  // Refuse before spending if today's demo budget is exhausted (Phase 10, B7). Throws
+  // DailyBudgetExceededError, which the route's error handler renders as a friendly 429 — no OpenAI
+  // call is made. No-op when OPENAI_DAILY_COST_CAP_USD is unset (local dev / tests).
+  await assertDailyBudgetAvailable();
 
   // The prompt is overridable so the Phase-8 eval can A/B a variant against the default; production
   // (and every non-eval caller) passes nothing and gets DEFAULT_PROMPT. The run records the variant's

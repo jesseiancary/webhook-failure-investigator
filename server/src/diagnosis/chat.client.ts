@@ -57,6 +57,11 @@ export function createOpenAIChatClient(opts?: { client?: OpenAI; model?: string 
         messages: messages.map(toOpenAIMessage),
         stream: true,
         stream_options: { include_usage: true },
+        // Per-request completion ceiling (Phase 10, B7): bound the answer length (and thus cost) of one
+        // chat turn. Omitted when unset so the provider default applies.
+        ...(env.OPENAI_MAX_OUTPUT_TOKENS === undefined
+          ? {}
+          : { max_completion_tokens: env.OPENAI_MAX_OUTPUT_TOKENS }),
       });
 
       let content = '';

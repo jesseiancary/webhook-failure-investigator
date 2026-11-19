@@ -1,6 +1,7 @@
 import { prisma } from '../db/client.js';
 import { assembleChatMessages } from './chat.context.js';
 import { createOpenAIChatClient, type ChatClient, type ChatUsage } from './chat.client.js';
+import { assertDailyBudgetAvailable } from './cost-guard.js';
 import { DiagnosisSchema } from './diagnosis.schema.js';
 import { getInvestigationById } from './diagnosis.service.js';
 import { computeCostUsd } from './pricing.js';
@@ -50,6 +51,11 @@ export async function streamChatTurn(
   if (investigation === null) {
     return null;
   }
+
+  // Refuse before spending (and before the SSE stream opens) if today's demo budget is exhausted
+  // (Phase 10, B7). Thrown here — synchronously, outside the generator — so the chat route catches it
+  // and sends a friendly JSON 429 rather than opening a stream. No-op when the cap env is unset.
+  await assertDailyBudgetAvailable();
 
   // Re-parse the stored diagnosis Json into the typed Diagnosis chat.context expects. It was validated
   // by DiagnosisSchema.parse at write time, so this is a safe, cheap re-validation at the boundary.

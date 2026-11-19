@@ -1,5 +1,6 @@
 import express from 'express';
 import { asyncHandler } from '../http/error-handler.js';
+import { paidLimiter } from '../http/rate-limit.js';
 import { getInvestigationById, investigateEvent, listInvestigations } from './diagnosis.service.js';
 
 export const diagnosisRouter: express.Router = express.Router();
@@ -7,9 +8,11 @@ export const diagnosisRouter: express.Router = express.Router();
 // POST /events/:id/investigate — run the diagnosis engine over a stored event and persist the
 // result. `investigateEvent` returns null when the event doesn't exist (mapped to 404 here) so the
 // 404 vs 201 decision lives in one place. A real OpenAI call happens on the default path, so this
-// route needs OPENAI_API_KEY; tests inject a stub via the service's `client` seam.
+// route needs OPENAI_API_KEY; tests inject a stub via the service's `client` seam. Rate-limited per
+// IP (paidLimiter) as this is a paid, OpenAI-spending endpoint (Phase 10, B5).
 diagnosisRouter.post(
   '/events/:id/investigate',
+  paidLimiter,
   asyncHandler(async (req, res) => {
     const investigation = await investigateEvent(req.params.id);
     if (investigation === null) {

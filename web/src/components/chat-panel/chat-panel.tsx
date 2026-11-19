@@ -115,7 +115,11 @@ export function ChatPanel({
     } catch (err) {
       if (controller.signal.aborted) return; // unmounted / superseded — nothing to show.
       const message =
-        err instanceof ApiError ? `Request failed (${err.status}).` : 'Request failed.';
+        err instanceof ApiError
+          ? // Show the server's message verbatim when it provided one (e.g. the daily-budget 429),
+            // otherwise the stable status form.
+            (err.serverMessage ?? `Request failed (${err.status}).`)
+          : 'Request failed.';
       patchAssistant(answerKey, { pending: false, error: true, content: message });
     } finally {
       setIsStreaming(false);
