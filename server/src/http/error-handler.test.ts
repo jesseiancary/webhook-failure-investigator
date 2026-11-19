@@ -1,5 +1,7 @@
 import type { NextFunction, Request, Response } from 'express';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { DailyBudgetExceededError } from '../diagnosis/cost-guard.js';
+import { logger } from '../logging/logger.js';
 import { errorHandler } from './error-handler.js';
 
 // A minimal Response double capturing status()/json() calls.
@@ -28,7 +30,7 @@ describe('errorHandler', () => {
   });
 
   it('surfaces a body-parser 400 (malformed JSON) without logging it as a fault', () => {
-    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const errorSpy = vi.spyOn(logger, 'error').mockImplementation(() => undefined);
     const res = mockRes();
     const err = Object.assign(new SyntaxError('Unexpected token'), { status: 400 });
 
@@ -40,7 +42,7 @@ describe('errorHandler', () => {
   });
 
   it('surfaces a 413 payload-too-large', () => {
-    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    vi.spyOn(logger, 'error').mockImplementation(() => undefined);
     const res = mockRes();
     const err = Object.assign(new Error('too large'), { statusCode: 413 });
 
@@ -51,7 +53,7 @@ describe('errorHandler', () => {
   });
 
   it('treats an unknown error as a logged 500', () => {
-    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const errorSpy = vi.spyOn(logger, 'error').mockImplementation(() => undefined);
     const res = mockRes();
 
     errorHandler(new Error('boom'), req, res, next);
@@ -62,7 +64,7 @@ describe('errorHandler', () => {
   });
 
   it('does not treat a 5xx status as a client error', () => {
-    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    vi.spyOn(logger, 'error').mockImplementation(() => undefined);
     const res = mockRes();
     const err = Object.assign(new Error('upstream'), { status: 502 });
 
@@ -70,5 +72,18 @@ describe('errorHandler', () => {
 
     expect(res.statusCode).toBe(500);
     expect(res.body).toEqual({ error: 'InternalServerError' });
+  });
+
+  it('renders a DailyBudgetExceededError as a friendly 429 with a verbatim message (not a fault)', () => {
+    const errorSpy = vi.spyOn(logger, 'error').mockImplementation(() => undefined);
+    const res = mockRes();
+    const err = new DailyBudgetExceededError(2.5, 2);
+
+    errorHandler(err, req, res, next);
+
+    expect(res.statusCode).toBe(429);
+    expect(res.body).toEqual({ error: 'DailyBudgetReached', message: err.message });
+    // It is an expected demo condition, not a server fault — nothing is logged at error level.
+    expect(errorSpy).not.toHaveBeenCalled();
   });
 });

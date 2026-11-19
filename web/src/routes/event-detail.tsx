@@ -3,7 +3,7 @@ import { AlertTriangle, Check, ChevronDown, Copy, Loader2 } from 'lucide-react';
 import { type ReactNode, Suspense, lazy, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { toast } from 'sonner';
-import { apiClient } from '../api/client';
+import { ApiError, apiClient } from '../api/client';
 import type {
   DeliveryAttempt,
   Diagnosis,
@@ -71,7 +71,16 @@ export default function EventDetailPage() {
       void queryClient.invalidateQueries({ queryKey: ['events'] });
       toast.success('Investigation complete');
     },
-    onError: (err) => toast.error(err instanceof Error ? err.message : 'Investigation failed'),
+    onError: (err) =>
+      toast.error(
+        // Prefer the server's verbatim message when present (e.g. the daily-budget 429), so the demo
+        // budget cap reads as a friendly notice rather than a raw `Label (status)` string.
+        err instanceof ApiError
+          ? (err.serverMessage ?? `Investigation failed (${err.status}).`)
+          : err instanceof Error
+            ? err.message
+            : 'Investigation failed',
+      ),
   });
   const investigating = investigate.isPending;
 

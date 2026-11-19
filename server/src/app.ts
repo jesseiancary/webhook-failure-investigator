@@ -2,14 +2,47 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import express, { type Express } from 'express';
+import helmet from 'helmet';
 import { env } from './config/env.js';
 import { chatRouter } from './diagnosis/chat.routes.js';
 import { diagnosisRouter } from './diagnosis/diagnosis.routes.js';
 import { errorHandler } from './http/error-handler.js';
+import { globalLimiter } from './http/rate-limit.js';
 import { captureRouter } from './ingest/capture.routes.js';
 import { eventsRouter } from './ingest/events.routes.js';
+import { httpLogger } from './logging/logger.js';
 
 export const app: Express = express();
+
+// Trust the single edge proxy in front of the app (Railway's router) so req.ip is the real client IP
+// — required for per-IP rate limiting to key correctly (Phase 10, B4). `1` (not `true`) trusts exactly
+// one hop and avoids express-rate-limit's permissive-trust-proxy error.
+app.set('trust proxy', 1);
+app.disable('x-powered-by');
+
+// Security headers (Phase 10, B4). helmet's defaults are sensible for an API; its default CSP is kept
+// but relaxed enough for the Vite SPA bundle served on the same origin (B1): the hashed assets are
+// same-origin (`'self'`), and `connect-src 'self'` keeps the SSE chat stream working. If a future
+// build inlines styles/scripts and the browser blocks them, widen the directives below (verify on the
+// deployed page per the plan's smoke test). No `cors` middleware: single-origin deploy, so there is no
+// cross-origin request to allow — a split-origin deploy would add it here.
+app.use(
+  helmet({
+    contentSecurityPolicy: {
+      directives: {
+        ...helmet.contentSecurityPolicy.getDefaultDirectives(),
+        'connect-src': ["'self'"],
+      },
+    },
+  }),
+);
+
+// Structured request logging (Phase 10, B8) with auth headers redacted at serialization time.
+app.use(httpLogger);
+
+// Loose global per-IP rate limiter across every route; the paid/ingest routes add stricter limiters
+// of their own (http/rate-limit.ts). Mounted before the routers so it guards all of them.
+app.use(globalLimiter);
 
 app.use(express.json({ limit: '1mb' }));
 

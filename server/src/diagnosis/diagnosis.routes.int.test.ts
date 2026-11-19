@@ -1,5 +1,5 @@
 import request from 'supertest';
-import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { app } from '../app.js';
 import { prisma } from '../db/client.js';
 import { createEvent } from '../ingest/events.service.js';
@@ -99,6 +99,27 @@ describe('POST /events/:id/investigate', () => {
 
   it('returns 404 for an unknown event', async () => {
     await request(app).post('/events/does-not-exist/investigate').expect(404);
+  });
+});
+
+// The global daily cost cap (Phase 10, B7) is wired into the service ahead of the OpenAI call, so an
+// over-budget request is refused with a friendly 429 before anything is spent. OPENAI_DAILY_COST_CAP_USD
+// is read lazily; set it after one real run has recorded cost, then confirm the next call is refused.
+describe('POST /events/:id/investigate — daily cost cap', () => {
+  afterEach(() => {
+    delete process.env.OPENAI_DAILY_COST_CAP_USD;
+  });
+
+  it('429s with the friendly budget envelope once the day’s spend reaches the cap', async () => {
+    const event = await createEvent(submission);
+    // One run (under no cap) records the canned usage's cost for today.
+    await request(app).post(`/events/${event.id}/investigate`).expect(201);
+
+    // Cap the day below that spend; the next paid call short-circuits before any OpenAI call.
+    process.env.OPENAI_DAILY_COST_CAP_USD = '0.0001';
+    const res = await request(app).post(`/events/${event.id}/investigate`).expect(429);
+    expect(res.body.error).toBe('DailyBudgetReached');
+    expect(typeof res.body.message).toBe('string');
   });
 });
 

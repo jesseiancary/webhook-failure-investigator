@@ -134,6 +134,29 @@ env | grep -E 'NODE_ENV|DATABASE_URL|POSTGRES'   # expect no output for host dev
 unset NODE_ENV DATABASE_URL                       # or just open a fresh terminal
 ```
 
+## Deploying to Railway
+
+Phase 10 takes the stack to a live, hardened URL on **Railway** as a **single service** — the server
+serves the compiled web bundle on one origin (no separate web host, no CORS, SSE just works) with
+**managed Postgres** alongside. The Phase 10 checklist (deploy + hardening) lives in
+**[docs/ROADMAP.md](docs/ROADMAP.md)**. In brief:
+
+- **Build:** Railway builds `server/Dockerfile`'s final stage (`runtime`) from the repo root. That
+  image builds `web/dist`, runs as non-root, and its entrypoint (`server/docker-entrypoint.prod.sh`)
+  runs `prisma migrate deploy` before booting — never seeds. Mirror it locally with
+  `pnpm --filter server migrate:deploy`.
+- **Env/secrets** (server service): `DATABASE_URL` (a Railway reference to the Postgres service),
+  `OPENAI_API_KEY`, `NODE_ENV=production`, `ADMIN_API_TOKEN`, `OPENAI_DAILY_COST_CAP_USD`,
+  `OPENAI_MAX_OUTPUT_TOKENS`. Leave `WFI_FAKE_LLM` unset so real diagnoses run. `PORT` is injected by
+  Railway. See `.env.example` for what each does.
+- **Hardening (open-demo + caps):** investigate/chat/manual-submit stay public, protected by per-IP
+  **rate limiting** + a **global daily OpenAI cost cap** (friendly 429 when hit). A shared **bearer
+  token** guards only `POST /capture-endpoints`. `helmet` + `trust proxy` are on; request logging
+  (`pino`) redacts auth headers; secrets are redacted before storage **and** logs.
+- **Local prod-parity smoke:** `docker build -f server/Dockerfile --target runtime -t wfi-prod .`,
+  then run it against a local Postgres with `NODE_ENV=production` and the caps set, and hit
+  `http://localhost:<port>/` — the UI should load from the server origin.
+
 ## Layout
 
 ```

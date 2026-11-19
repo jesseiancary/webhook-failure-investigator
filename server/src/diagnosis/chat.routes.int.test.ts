@@ -4,6 +4,7 @@ import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { app } from '../app.js';
 import { prisma } from '../db/client.js';
 import { createEvent } from '../ingest/events.service.js';
+import { logger } from '../logging/logger.js';
 import type { ManualSubmission } from '../ingest/schemas.js';
 import type { ChatMessage } from './prompt.js';
 
@@ -267,7 +268,7 @@ describe('POST /investigations/:id/chat', () => {
   });
 
   it('logs and emits an error event on a mid-stream failure, discarding the partial answer', async () => {
-    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const loggedError = vi.spyOn(logger, 'error').mockImplementation(() => undefined);
     behavior.shouldThrow = true;
     const { investigationId } = await seedInvestigation();
 
@@ -285,12 +286,12 @@ describe('POST /investigations/:id/chat', () => {
     expect(events.some((e) => e.event === 'done')).toBe(false);
 
     // The failure was logged server-side (Fix 1), not only surfaced to the client.
-    expect(consoleError).toHaveBeenCalled();
+    expect(loggedError).toHaveBeenCalled();
 
     // The interrupted turn is discarded: the question persisted, but no assistant answer row.
     const messages = await prisma.investigationMessage.findMany({ where: { investigationId } });
     expect(messages.map((m) => m.role)).toEqual(['user']);
 
-    consoleError.mockRestore();
+    loggedError.mockRestore();
   });
 });

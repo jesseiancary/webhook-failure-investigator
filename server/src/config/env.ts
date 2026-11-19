@@ -47,6 +47,24 @@ function unitInterval(name: string): number | undefined {
 }
 
 /**
+ * Parse an optional strictly-positive env var. Unset → `undefined` (the feature it gates is off).
+ * Set-but-invalid (blank, non-numeric, or ≤ 0) throws, so a typo fails loudly rather than silently
+ * disabling the cap it configures (`Number('')` is `0`). `integer` additionally rejects fractions.
+ */
+function positiveNumber(name: string, opts?: { integer?: boolean }): number | undefined {
+  const raw = process.env[name];
+  if (raw === undefined) {
+    return undefined;
+  }
+  const value = raw.trim() === '' ? NaN : Number(raw);
+  if (!Number.isFinite(value) || value <= 0 || (opts?.integer && !Number.isInteger(value))) {
+    const kind = opts?.integer ? 'a positive integer' : 'a positive number';
+    throw new Error(`${name} must be ${kind} when set; got "${raw}".`);
+  }
+  return value;
+}
+
+/**
  * Typed, validated access to the environment. Prefer importing `env` over reading
  * `process.env` directly so missing/invalid config fails loudly on first use (these are lazy
  * getters, so validation happens when a value is first read, not at process start).
@@ -105,6 +123,24 @@ export const env = {
     // fakes instead of calling OpenAI, so the whole stack runs with no API key and no network — which
     // is what the Playwright happy-path drives. Opt-in only (`WFI_FAKE_LLM=1`); unset in production.
     return process.env.WFI_FAKE_LLM === '1';
+  },
+  get ADMIN_API_TOKEN(): string | undefined {
+    // Shared bearer token guarding the one admin write, POST /capture-endpoints (Phase 10, B6). When
+    // unset (local dev / tests) the require-admin middleware no-ops; in production it is required so
+    // minting public ingest URLs is gated. Not read via `required()` precisely so dev stays open.
+    const raw = process.env.ADMIN_API_TOKEN;
+    return raw === undefined || raw === '' ? undefined : raw;
+  },
+  get OPENAI_DAILY_COST_CAP_USD(): number | undefined {
+    // Global daily demo budget (Phase 10, B7). When set, the paid endpoints refuse once today's summed
+    // Investigation + InvestigationMessage costUsd (UTC) reaches it. Unset → no app-level daily cap
+    // (the OpenAI-dashboard monthly budget is the backstop). Must be strictly positive when present.
+    return positiveNumber('OPENAI_DAILY_COST_CAP_USD');
+  },
+  get OPENAI_MAX_OUTPUT_TOKENS(): number | undefined {
+    // Per-request completion ceiling (Phase 10, B7) passed to the diagnosis/chat calls, bounding the
+    // most expensive dimension of a single call. Unset → the param is omitted (provider default).
+    return positiveNumber('OPENAI_MAX_OUTPUT_TOKENS', { integer: true });
   },
   get EVAL_MIN_ACCURACY(): number | undefined {
     // Optional override for the Phase-8 `pnpm eval --check` classification-accuracy floor; the default

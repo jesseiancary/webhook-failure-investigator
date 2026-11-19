@@ -34,6 +34,44 @@ describe('POST /capture-endpoints', () => {
   });
 });
 
+// The admin gate (Phase 10, B6) is wired onto this one admin write. ADMIN_API_TOKEN is read lazily,
+// so setting it here activates the gate for these cases and clearing it restores the open-dev default
+// the rest of the suite relies on.
+describe('POST /capture-endpoints — admin gate (ADMIN_API_TOKEN set)', () => {
+  const TOKEN = 'integration-admin-token-value';
+  beforeEach(() => {
+    process.env.ADMIN_API_TOKEN = TOKEN;
+  });
+  afterAll(() => {
+    delete process.env.ADMIN_API_TOKEN;
+  });
+
+  it('401s without a bearer token', async () => {
+    const res = await request(app)
+      .post('/capture-endpoints')
+      .send({ source: 'stripe' })
+      .expect(401);
+    expect(res.body).toEqual({ error: 'Unauthorized' });
+  });
+
+  it('401s with a wrong bearer token', async () => {
+    await request(app)
+      .post('/capture-endpoints')
+      .set('Authorization', 'Bearer wrong')
+      .send({ source: 'stripe' })
+      .expect(401);
+  });
+
+  it('mints the endpoint with the correct bearer token', async () => {
+    const res = await request(app)
+      .post('/capture-endpoints')
+      .set('Authorization', `Bearer ${TOKEN}`)
+      .send({ source: 'stripe' })
+      .expect(201);
+    expect(res.body.token).toBeTruthy();
+  });
+});
+
 describe('GET /capture-endpoints', () => {
   it('lists endpoints with an event count but without their tokens', async () => {
     await mintEndpoint({ source: 'stripe', name: 'Stripe test' });

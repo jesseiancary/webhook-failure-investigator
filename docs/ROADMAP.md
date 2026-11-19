@@ -314,15 +314,15 @@ Deferred from the PR2 shell review. Each is gated on a trigger that hasn't fired
 
 ### Hardening
 
-- [ ] Verify secret/header redaction in both storage and logs. _(Storage is covered by `server/src/ingest/redact.ts`; logs are the gap — add structured logging (pino) with redacted header paths and keep error logs to message + stack, never dumping `req.body`/`req.headers`.)_
-- [ ] Add rate limiting on public endpoints. _(`express-rate-limit`, tiered: stricter on the paid investigate/chat endpoints and the public capture ingest. Set `trust proxy` so client IPs are correct behind Railway's edge.)_
-- [ ] Add a lightweight auth gate on write endpoints. _(Shared bearer token on `POST /capture-endpoints` only, per the open-demo model above; no-op when the token env var is unset so local dev/tests are unaffected.)_
-- [ ] Set OpenAI usage/cost guardrails (per-request + daily cap). _(Per-request via `max_output_tokens`; global daily cap by summing today's `Investigation` + `InvestigationMessage` `costUsd` and refusing the paid endpoints once over — reuses the existing per-call cost accounting; back it with a provider-side monthly budget in the OpenAI dashboard.)_
+- [x] Verify secret/header redaction in both storage and logs. _(Storage stays covered by `server/src/ingest/redact.ts`; logs are now closed — structured logging via **pino**/**pino-http** (`server/src/logging/logger.ts`) with `redact` header paths mirroring the denylist, and `error-handler.ts`/`chat.routes.ts` log message + stack only, never `req.body`/`req.headers`. The censor is asserted in `logger.test.ts`.)_
+- [x] Add rate limiting on public endpoints. _(`express-rate-limit`, tiered in `server/src/http/rate-limit.ts`: strict `paidLimiter` on `POST /events/:id/investigate` + `POST /investigations/:id/chat`, `captureLimiter` on `POST /capture/:token`, loose `globalLimiter` on all routes; standard `{ error }` envelope on 429. `app.set('trust proxy', 1)` keys on the real client IP behind Railway's edge; enforcement skips under `NODE_ENV=test`, with the 429 path covered in `rate-limit.test.ts`. Memory store (single-instance; Redis is the noted multi-instance upgrade).)_
+- [x] Add a lightweight auth gate on write endpoints. _(Constant-time bearer check (`server/src/http/require-admin.ts`) on `POST /capture-endpoints` only, per the open-demo model; no-ops with a one-time warning when `ADMIN_API_TOKEN` is unset so local dev/tests are unaffected. Unit-covered in `require-admin.test.ts` and wired-in-route-covered in `capture.routes.int.test.ts`.)_
+- [x] Set OpenAI usage/cost guardrails (per-request + daily cap). _(Per-request `max_output_tokens` (diagnosis `responses.parse`) / `max_completion_tokens` (chat) when `OPENAI_MAX_OUTPUT_TOKENS` is set; global daily cap in `server/src/diagnosis/cost-guard.ts` sums today's (UTC) `Investigation` + `InvestigationMessage` `costUsd` and refuses the two paid endpoints with a friendly `429` (`DailyBudgetReached`, surfaced verbatim in the UI) once at/over `OPENAI_DAILY_COST_CAP_USD` — reuses the existing per-call accounting, DB-backed so it survives restarts; back it with a provider-side monthly budget. Covered in `cost-guard.test.ts` + the route 429 in `diagnosis.routes.int.test.ts`.)_
 
 ### Verification
 
-- [ ] Deployed smoke test: run one seeded investigation and one follow-up on the live URL.
-- [ ] No secrets appear in stored records or logs.
+- [ ] Deployed smoke test: run one seeded investigation and one follow-up on the live URL. _(Requires the live Railway deploy (manual vendor provisioning — see the README "Deploying to Railway" section); the code is in place, and a local prod-parity smoke is documented there.)_
+- [ ] No secrets appear in stored records or logs. _(Code-level guarantee is implemented and unit-tested (storage `redact.ts` + log redaction in `logger.test.ts`); the deployed spot-check runs against the live instance.)_
 
 ---
 

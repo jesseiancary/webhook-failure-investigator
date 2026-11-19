@@ -1,6 +1,8 @@
 import express from 'express';
 import { asyncHandler } from '../http/error-handler.js';
 import { openSSE } from '../http/sse.js';
+import { paidLimiter } from '../http/rate-limit.js';
+import { logger } from '../logging/logger.js';
 import { ChatRequestSchema } from './chat.schema.js';
 import { streamChatTurn } from './chat.service.js';
 
@@ -13,6 +15,7 @@ export const chatRouter: express.Router = express.Router();
 // event-stream headers commits the status, after which a 404/400 can no longer be sent.
 chatRouter.post(
   '/investigations/:id/chat',
+  paidLimiter,
   asyncHandler(async (req, res) => {
     const parsed = ChatRequestSchema.safeParse(req.body);
     if (!parsed.success) {
@@ -54,8 +57,12 @@ chatRouter.post(
     } catch (err) {
       // The stream headers are already committed, so a mid-stream failure can't become a 500 — but it
       // must still be logged server-side (every other fault is; see http/error-handler.ts), not only
-      // surfaced to the client. Report an opaque terminal `error` event — no internal detail leaks.
-      console.error(err);
+      // surfaced to the client. Message + stack only (never the request body) so no payload leaks into
+      // the log (Phase 10, B8). Report an opaque terminal `error` event — no internal detail leaks.
+      logger.error(
+        err instanceof Error ? { err: { message: err.message, stack: err.stack } } : { err },
+        'chat stream failed mid-stream',
+      );
       if (!clientGone) {
         sse.sendEvent('error', { error: 'ChatStreamFailed' });
       }

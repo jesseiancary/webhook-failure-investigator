@@ -276,6 +276,13 @@ export function createOpenAIDiagnosisClient(opts?: {
           ? {}
           : { reasoning: { effort: env.OPENAI_REASONING_EFFORT } };
 
+      // Per-request completion ceiling (Phase 10, B7): bound the most expensive dimension of each
+      // call. Omitted when unset so the provider default applies. Spread into every request below.
+      const maxOutputParam =
+        env.OPENAI_MAX_OUTPUT_TOKENS === undefined
+          ? {}
+          : { max_output_tokens: env.OPENAI_MAX_OUTPUT_TOKENS };
+
       // Context is threaded server-side via `previous_response_id` (store: true): the first call sends
       // the full mapped transcript, and each later call sends ONLY the new items (the tool results)
       // plus the prior response id. OpenAI retains the reasoning + function_call items for us, so we
@@ -294,6 +301,7 @@ export function createOpenAIDiagnosisClient(opts?: {
           ...(previousResponseId ? { previous_response_id: previousResponseId } : {}),
           text: { format: DIAGNOSIS_TEXT_FORMAT },
           ...reasoningParam,
+          ...maxOutputParam,
           ...(useTools ? { tools: toolkit.definitions, tool_choice: 'auto' } : {}),
         });
         accumulate(response.usage);
@@ -343,6 +351,7 @@ export function createOpenAIDiagnosisClient(opts?: {
         ...(previousResponseId ? { previous_response_id: previousResponseId } : {}),
         text: { format: DIAGNOSIS_TEXT_FORMAT },
         ...reasoningParam,
+        ...maxOutputParam,
         // Tools are still advertised (even with tool_choice 'none') so the schema/context are identical.
         ...(useTools ? { tools: toolkit.definitions, tool_choice: 'none' } : {}),
       });
