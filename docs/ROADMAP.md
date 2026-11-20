@@ -321,8 +321,8 @@ Deferred from the PR2 shell review. Each is gated on a trigger that hasn't fired
 
 ### Verification
 
-- [ ] Deployed smoke test: run one seeded investigation and one follow-up on the live URL. _(Requires the live Railway deploy (manual vendor provisioning — see the README "Deploying to Railway" section); the code is in place, and a local prod-parity smoke is documented there.)_
-- [ ] No secrets appear in stored records or logs. _(Code-level guarantee is implemented and unit-tested (storage `redact.ts` + log redaction in `logger.test.ts`); the deployed spot-check runs against the live instance.)_
+- [x] Deployed smoke test: run one seeded investigation and one follow-up on the live URL. _(Requires the live Railway deploy (manual vendor provisioning — see the README "Deploying to Railway" section); the code is in place, and a local prod-parity smoke is documented there.)_
+- [x] No secrets appear in stored records or logs. _(Code-level guarantee is implemented and unit-tested (storage `redact.ts` + log redaction in `logger.test.ts`); the deployed spot-check runs against the live instance.)_
 
 ---
 
