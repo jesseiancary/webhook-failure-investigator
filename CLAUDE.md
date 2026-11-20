@@ -15,7 +15,7 @@ Full rationale lives in [docs/PLAN.md](docs/PLAN.md); the phased build checklist
 
 ## Current phase
 
-**Phases 1–9 complete.** The app is a working, fully containerized full stack: data model + ingestion, grounded structured-output diagnosis, tool calling, follow-up chat, the React UI, an eval harness, and — as of **Phase 9 (Full Local Containerization)** — `docker compose up` runs server + web + Postgres together with in-container hot reload (the host `pnpm dev` loop is still supported). **Next: Phase 10 — Deploy & Hardening** (managed Postgres, migrations-on-deploy, prod web build, rate limiting, auth gate on writes, OpenAI cost caps). [docs/ROADMAP.md](docs/ROADMAP.md) is the authoritative checklist.
+**Phases 1–10 complete.** The app is a working, fully containerized full stack, now deployed live on Railway: data model + ingestion, grounded structured-output diagnosis, tool calling, follow-up chat, the React UI, an eval harness, `docker compose up` for the whole stack with in-container hot reload (the host `pnpm dev` loop is still supported), and — as of **Phase 10 (Deploy & Hardening)** — a single-service Railway deploy with managed Postgres, migrations-on-deploy, a prod web build served on one origin, tiered per-IP rate limiting, a constant-time admin bearer gate on writes, and a DB-backed daily OpenAI cost cap; the live smoke test (seeded investigation + follow-up) and the no-secrets-in-records/logs check both pass. **Next: Phase 11 — Portfolio Presentation** (README architecture diagram, demo GIF, "engineering decisions" writeup, embedded eval scorecard). [docs/ROADMAP.md](docs/ROADMAP.md) is the authoritative checklist.
 
 ## The core rule
 
