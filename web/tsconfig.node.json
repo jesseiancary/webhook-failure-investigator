@@ -1,0 +1,19 @@
+{
+  // Typechecks the node-land config files (vite / playwright) that live outside `src` and use node
+  // built-ins — they're excluded from tsconfig.json ("include": ["src"], "types": ["vite/client"]).
+  //
+  // Deliberately NOT a project reference in the root `tsc -b` graph: vite.config.ts imports a helper
+  // from `./src/lib/api-proxy`, and a composite project may not import files it doesn't list — while
+  // the alternative (referencing the composite app project) needs emit, which the root's
+  // `tsc -b --noEmit` forbids (TS6310). So this is a standalone, non-composite check run as its own
+  // `tsc -p` step in the root `typecheck` script; the pulled-in src helper is pure TS and checks fine
+  // under lib ES2022.
+  "extends": "../tsconfig.base.json",
+  "compilerOptions": {
+    "lib": ["ES2022"],
+    "types": ["node"],
+    "composite": false,
+    "noEmit": true
+  },
+  "include": ["vite.config.ts", "playwright.config.ts"]
+}
