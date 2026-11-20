@@ -249,7 +249,7 @@ Deferred from the PR2 shell review. Each is gated on a trigger that hasn't fired
 
 - [x] `/eval` prints a scorecard; export results to `docs/`. _(PR2: `pnpm eval` renders a compact scorecard to stdout and, on a real run, exports a timestamped JSON + Markdown pair to `docs/eval/` for diffing across versions)_
 - [x] Optionally gate CI on a minimum accuracy/grounding threshold. _(PR3: `pnpm eval --check` enforces a configurable accuracy/grounding floor (exit non-zero below the bar). It is wired as a key-gated **manual opt-in**, not an always-on CI job — this repo has no `OPENAI_API_KEY` secret, so a real-spend job would only ever skip; see [planned-ci.md](./planned-ci.md). The always-on CI coverage is the fake-mode `eval-smoke` job.)_
-- [ ] Publish the scorecard in the README. _(Deferred to Phase 11 — Portfolio Presentation; `docs/eval/README.md` holds the pointer until then.)_
+- [x] Publish the scorecard in the README. _(Phase 11: headline scorecard embedded in the README between the `EVAL_SCORECARD` markers, filled from a committed live `pnpm eval` run; `docs/eval/` holds the full diffable reports.)_
 
 ### Verification
 
@@ -333,13 +333,13 @@ Deferred from the PR2 shell review. Each is gated on a trigger that hasn't fired
 
 ### Documentation
 
-- [ ] README: architecture diagram, live demo link, quickstart.
-- [ ] Demo GIF/screenshots of the full flow.
-- [ ] "Engineering decisions" writeup (why structured output, how grounding is enforced, cost controls, context management).
-- [ ] Embed the eval scorecard.
-- [ ] One-paragraph "what this demonstrates" summary for non-technical reviewers.
+- [x] README: architecture diagram, live demo link, quickstart. _(Mermaid architecture diagram (web → routes → diagnosis/chat/ingest → Prisma/Postgres, with `@wfi/contracts` feeding all three consumers), the live Railway URL, and the existing two-path quickstart.)_
+- [x] Demo GIF/screenshots of the full flow. _(Dark-mode, real-model PNGs captured by `web/e2e/screenshots.spec.ts` → `docs/assets/{dashboard,diagnosis,citation,chat}.png`; the diagnosis shot shows the evidence citations + per-run token/cost line. Run manually via `pnpm --filter @wfi/web e2e:screenshots` (its own `playwright.screenshots.config.ts`, real OpenAI key → it spends); `testIgnore`d by the default config so it never runs in CI. A GIF stays optional/manual.)_
+- [x] "Engineering decisions" writeup (why structured output, how grounding is enforced, cost controls, context management). _(Full writeup in the README, each point linked to the code behind it.)_
+- [x] Embed the eval scorecard. _(Headline accuracy/grounding/calibration table in the README between the `EVAL_SCORECARD` markers, filled from a committed live `pnpm eval` run under `docs/eval/`.)_
+- [x] One-paragraph "what this demonstrates" summary for non-technical reviewers. _(README "What this demonstrates" section.)_
 
 ### Verification
 
-- [ ] A new reader can go from README → live demo → understanding the LLM design in under 5 minutes.
-- [ ] Every claim in the README is backed by something runnable in the repo.
+- [x] A new reader can go from README → live demo → understanding the LLM design in under 5 minutes. _(README leads with what it is + the one hard thing (grounding), a live-demo link, demo screenshots, then the engineering writeup.)_
+- [x] Every claim in the README is backed by something runnable in the repo. _(Each engineering-decisions bullet links to the specific source file; screenshots and the eval scorecard are committed artifacts regenerable via their documented commands.)_

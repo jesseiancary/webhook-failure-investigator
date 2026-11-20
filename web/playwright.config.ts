@@ -23,6 +23,10 @@ const API_HEALTH = `http://localhost:${API_PORT}/health`;
 
 export default defineConfig({
   testDir: './e2e',
+  // The portfolio screenshot capture (screenshots.spec.ts) is a manual, real-model, SPENDING run —
+  // it has its own config (playwright.screenshots.config.ts) and must never run in CI. CI invokes
+  // `pnpm --filter @wfi/web e2e` → this config, so ignore it here.
+  testIgnore: /screenshots\.spec\.ts$/,
   timeout: 30_000,
   fullyParallel: false,
   forbidOnly: !!process.env.CI,

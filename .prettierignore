@@ -5,3 +5,8 @@ coverage
 pnpm-lock.yaml
 test-results
 playwright-report
+
+# Generated, timestamped eval reports — machine output, exempt from style formatting
+docs/eval/*.json
+docs/eval/*.md
+!docs/eval/README.md
