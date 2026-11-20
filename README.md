@@ -1,10 +1,174 @@
 # Webhook Failure Investigator
 
-An AI assistant that investigates failed webhook deliveries and explains what went wrong — **grounded in the actual delivery logs, not guesses**. It classifies the failure, explains the root cause while citing the real request/response/log fields it relied on, and recommends concrete fixes. When the evidence is too thin, it returns `insufficient_evidence` rather than inventing a cause.
+An AI assistant that investigates failed webhook deliveries and explains what went wrong —
+**grounded in the actual delivery logs, not guesses**. It classifies the failure into a defined
+taxonomy, explains the root cause while citing the real request/response/log fields it relied on,
+recommends concrete fixes, and answers follow-up questions with the original event held as context.
+When the evidence is too thin, it returns `insufficient_evidence` rather than inventing a cause.
 
-See [docs/PLAN.md](docs/PLAN.md) for the full engineering plan and [docs/ROADMAP.md](docs/ROADMAP.md) for the phased build status.
+> **🔗 Live demo:** https://webhook-failure-investigator-production.up.railway.app/ &nbsp;·&nbsp;
+> **Status:** live — Phases 1–11 complete (full stack deployed on Railway; see [docs/ROADMAP.md](docs/ROADMAP.md)).
 
-> **Status:** mid-build. The monorepo, toolchain, and CI are in place (Phase 2); the data model, diagnosis engine, and UI land in later phases.
+The one hard thing this project does well is **keep the LLM honest**: every claim it makes must
+cite a real log field, and that constraint is enforced structurally — by the output schema, by
+tool-gated data access, and by an eval that fails when grounding regresses — not by politely asking
+the model to behave.
+
+## What this demonstrates
+
+_(for non-technical reviewers)_ Developers who integrate third-party APIs constantly hit webhook
+delivery failures, and triaging them — expired token? payload mismatch? timeout? rate limit? a bug
+on the receiving end? — is tedious, repetitive work. This app takes a real failed delivery and
+produces a plain-language, **evidence-cited** diagnosis plus concrete fixes, then lets you
+interrogate it conversationally. It is a complete, tested, deployed full-stack product built to show
+production-grade LLM engineering — structured output, tool calling, anti-hallucination grounding,
+context management, cost control, and measurable quality via evals — not a prompt-in-a-box demo.
+
+## Demo
+
+The full flow — submit a failure → investigate → read the grounded diagnosis → click an evidence
+citation to jump to the exact log field → ask a follow-up:
+
+|                                              Events dashboard                                               |                                                             Grounded diagnosis                                                              |
+| :---------------------------------------------------------------------------------------------------------: | :-----------------------------------------------------------------------------------------------------------------------------------------: |
+|         ![Events dashboard listing captured and seeded webhook failures](docs/assets/dashboard.png)         | ![Investigation detail: failure category, confidence badge, evidence citations, and the per-run token/cost line](docs/assets/diagnosis.png) |
+|                                       **Citation → the log it cites**                                       |                                                        **Streaming follow-up chat**                                                         |
+| ![Clicking an evidence citation expands the exact delivery attempt it references](docs/assets/citation.png) |             ![Follow-up question answered from the investigation's persisted context, streamed over SSE](docs/assets/chat.png)              |
+
+The **evidence citations** (each links to the underlying log field) and the **per-run token/cost
+line** are the credibility signals: the diagnosis is accountable to the data, and what it cost is in
+the open. Screenshots are captured end-to-end against a **real model** (dark theme) by
+[web/e2e/screenshots.spec.ts](web/e2e/screenshots.spec.ts) — a manual
+`pnpm --filter @wfi/web e2e:screenshots` run that is deliberately kept out of CI (it spends).
+
+## Architecture
+
+```mermaid
+flowchart LR
+  subgraph Client["web · React + Vite + TanStack Query"]
+    UI["Dashboard · Investigation detail · SSE chat · Submit form"]
+  end
+
+  subgraph Server["server · Express + TypeScript"]
+    direction TB
+    R["Routes<br/>events · capture · investigate · chat"]
+    ING["Ingestion<br/>redact secrets @ createEvent choke point"]
+    DX["Diagnosis engine<br/>OpenAI Responses API + bounded tool-calling loop<br/>Structured Outputs (Zod)"]
+    CHAT["Follow-up chat<br/>SSE stream · token budget · cheaper tier"]
+    GUARD["Guardrails<br/>rate limit · admin gate · daily cost cap"]
+  end
+
+  subgraph Tools["Retrieval tools (grounding)"]
+    T["get_delivery_history · get_event_payload · fetch_api_docs"]
+  end
+
+  DB[("PostgreSQL<br/>via Prisma")]
+  OAI["OpenAI API"]
+  CONTRACTS["@wfi/contracts<br/>one Zod schema set"]
+
+  UI -->|REST + SSE| R
+  R --> ING --> DB
+  R --> GUARD
+  R --> DX
+  R --> CHAT
+  DX <-->|tool calls| T
+  T --> DB
+  DX -->|validated diagnosis| DB
+  DX --> OAI
+  CHAT --> OAI
+  CHAT --> DB
+
+  CONTRACTS -.->|validation + structured-output + wire types| Server
+  CONTRACTS -.-> Client
+```
+
+**The shared `@wfi/contracts` package is the single source of truth:** one set of Zod schemas drives
+API input validation, the LLM's structured-output contract, _and_ the web wire types — so the three
+can't drift. Full rationale in [docs/PLAN.md](docs/PLAN.md); phased build history in
+[docs/ROADMAP.md](docs/ROADMAP.md).
+
+## Engineering decisions
+
+The parts a reviewer actually cares about — each tied to code you can run.
+
+### Why structured output
+
+A single Zod schema (`DiagnosisSchema` in [@wfi/contracts](contracts/)) drives OpenAI Structured
+Outputs via `zodResponseFormat`, so the model returns a _validated_ diagnosis object — failure
+category (from the 8-value taxonomy below), root cause, confidence, an `evidence[]` array citing
+specific log fields, remediation steps, and a reachability assessment. **The same schema validates
+API input**, which is the point: define the shape once, eliminate contract drift between the API,
+the LLM, and the frontend. See [server/src/diagnosis/diagnosis.schema.ts](server/src/diagnosis/diagnosis.schema.ts)
+and the Prisma-enum lock-step guard in
+[server/src/domain/failure-category.ts](server/src/domain/failure-category.ts).
+
+> **Failure taxonomy:** `authentication`, `payload_validation`, `timeout`, `network_failure`,
+> `rate_limit`, `server_error`, `application_logic`, `insufficient_evidence`.
+
+### How grounding is enforced
+
+This is the heart of the project — hallucination is made _structurally_ hard, three ways:
+
+1. **Schema-required citations.** `evidence[]` must reference real log fields; the UI renders each as
+   a live link that opens the exact delivery attempt it cites (visible in the demo above).
+2. **Tool-gated data access.** Rather than dumping raw logs into the prompt, the model retrieves data
+   through bounded tools — `get_delivery_history`, `get_event_payload`, `fetch_api_docs`
+   ([server/src/diagnosis/tools/](server/src/diagnosis/tools/)) — and each call is persisted as an
+   `InvestigationMessage`.
+3. **An explicit escape hatch.** When evidence is thin, the model must return
+   `failureCategory: insufficient_evidence` with `isSpeculative: true` instead of guessing.
+
+And it's **verified, not asserted**: the eval harness includes a deliberately weakened
+`regressed-no-grounding` prompt variant and confirms the scorecard's grounding score drops when the
+invariant is removed ([server/src/eval/prompt-variants.ts](server/src/eval/prompt-variants.ts)).
+
+### Cost controls
+
+Every model call records `model`, `promptTokens`, `completionTokens`, and `costUsd` on the
+`Investigation` record ([server/src/diagnosis/pricing.ts](server/src/diagnosis/pricing.ts)) — feeding
+both the UI credibility signal and a **DB-backed global daily cost cap**
+([server/src/diagnosis/cost-guard.ts](server/src/diagnosis/cost-guard.ts)) that sums the day's spend
+across investigations _and_ chat turns and refuses paid endpoints with a friendly `429` once over
+budget. Follow-up chat runs on a configurable cheaper tier (`OPENAI_CHAT_MODEL`), there's a
+per-request output-token ceiling (`OPENAI_MAX_OUTPUT_TOKENS`), and the few-shot set is curated
+(deliberately not one-per-category) for prompt-cost discipline.
+
+### Context management
+
+Follow-up chat is multi-turn Q&A scoped to a single investigation, streamed over SSE. Each turn
+enforces a **per-request token budget** ([server/src/diagnosis/token-budget.ts](server/src/diagnosis/token-budget.ts)),
+summarizes/truncates long log bodies with **pointers back to the full data**
+([server/src/diagnosis/chat.context.ts](server/src/diagnosis/chat.context.ts)), and replays only the
+history scoped to that investigation — so a very long log thread stays within the context limit
+without erroring.
+
+## Eval scorecard
+
+Diagnosis quality is measurable and regression-safe. The harness scores **classification accuracy**
+(overall + per-category), **grounding** (does the answer cite the expected real fields?), and
+**confidence calibration** against a labeled scenario set, tagged by prompt version. Methodology and
+the full diffable reports live in [docs/eval/](docs/eval/).
+
+<!-- EVAL_SCORECARD:START — headline from the committed docs/eval/diagnosis-v2-*.md (live run); regenerate with `pnpm eval` -->
+
+**Prompt `diagnosis-v2` · model `gpt-6-luna` · 11 labeled scenarios · live run**
+
+| Metric                        | Score                                        |
+| ----------------------------- | -------------------------------------------- |
+| Classification accuracy       | **90.9%** (10/11)                            |
+| Grounding pass rate           | **100%** (11/11) · 96.7% mean field coverage |
+| Insufficient-evidence refusal | **1/1** refused correctly                    |
+| Confidence calibration        | **100%** OK                                  |
+| Cost for the full run         | **$0.0087** (68.6k tokens)                   |
+
+The single miss is an honest one — a redacted-secret payload classified as `application_logic`
+rather than `payload_validation`; it still cited real evidence (grounding passed). Full per-scenario
+rows and the machine-readable report:
+[docs/eval/diagnosis-v2-2026-11-20T03-52-23Z.md](docs/eval/diagnosis-v2-2026-11-20T03-52-23Z.md).
+<!-- EVAL_SCORECARD:END -->
+
+Run it yourself — `pnpm eval` (real, needs a key) or `WFI_FAKE_LLM=1 pnpm eval` (plumbing check, no
+spend). See [docs/eval/README.md](docs/eval/README.md).
 
 ## Prerequisites
 
@@ -98,6 +262,7 @@ the full-stack container it reaches it on `postgres:5432` (set by `docker-compos
 | Format    | `pnpm format`    |
 | Test      | `pnpm test`      |
 | Build     | `pnpm build`     |
+| Run evals | `pnpm eval`      |
 
 ### Common tasks (Docker + DB)
 
@@ -160,8 +325,9 @@ serves the compiled web bundle on one origin (no separate web host, no CORS, SSE
 ## Layout
 
 ```
-/server    Express + TypeScript API (Prisma + OpenAI integration land in later phases)
-/web       React + TypeScript + Vite frontend
-/docs      PLAN.md, ROADMAP.md, planned-ci.md
-/.claude   Claude Code developer tooling
+/server      Express + TypeScript API — Prisma, OpenAI (Structured Outputs + tool calling), chat
+/web         React + TypeScript + Vite frontend
+/contracts   @wfi/contracts — the shared Zod schemas (single source of truth)
+/docs        PLAN.md, ROADMAP.md, planned-ci.md, eval scorecards, demo assets
+/.claude     Claude Code developer tooling
 ```

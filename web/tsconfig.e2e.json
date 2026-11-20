@@ -1,0 +1,22 @@
+{
+  // Typechecks the Playwright e2e specs in ./e2e. They live outside `src` and are node-land (the
+  // runner is node — `node:fs/promises`, `node:process`), but their addInitScript/evaluate callbacks
+  // run in the browser and touch DOM globals (e.g. `localStorage`), so this project pulls in BOTH the
+  // `node` types and the DOM lib. That mix is why it's its own project rather than folded into:
+  //   - tsconfig.json (the app: rootDir `src`, emits to dist, `types: ["vite/client"]` — no node), or
+  //   - tsconfig.node.json (config files: `types: ["node"]` but no DOM lib).
+  //
+  // Referenced from the root tsconfig so `tsc -b` checks it AND the editor's tsserver discovers it (an
+  // unreferenced config is invisible to tsserver, which then falls back to the nearest tsconfig.json —
+  // the app's — whose `vite/client` types can't resolve `node:*`, and the IDE error returns). Being
+  // referenced means it must be composite (inherited from the base). `@playwright/test` types arrive
+  // via the explicit import, so they don't need to be listed in `types`.
+  "extends": "../tsconfig.base.json",
+  "compilerOptions": {
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "types": ["node"],
+    "noEmit": true,
+    "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.e2e.tsbuildinfo"
+  },
+  "include": ["e2e"]
+}
