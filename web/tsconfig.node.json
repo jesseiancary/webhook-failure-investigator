@@ -2,18 +2,26 @@
   // Typechecks the node-land config files (vite / playwright) that live outside `src` and use node
   // built-ins — they're excluded from tsconfig.json ("include": ["src"], "types": ["vite/client"]).
   //
-  // Deliberately NOT a project reference in the root `tsc -b` graph: vite.config.ts imports a helper
-  // from `./src/lib/api-proxy`, and a composite project may not import files it doesn't list — while
-  // the alternative (referencing the composite app project) needs emit, which the root's
-  // `tsc -b --noEmit` forbids (TS6310). So this is a standalone, non-composite check run as its own
-  // `tsc -p` step in the root `typecheck` script; the pulled-in src helper is pure TS and checks fine
-  // under lib ES2022.
+  // Referenced from the root tsconfig so it's part of the `tsc -b` graph AND so the editor's tsserver
+  // discovers it (an unreferenced config is invisible to tsserver, which then falls back to the nearest
+  // tsconfig.json — whose "types": ["vite/client"] can't resolve `node:process`, and the IDE error
+  // returns). Being referenced means it must be composite (inherited from the base).
+  //
+  // src/lib/api-proxy.ts is listed because vite.config.ts imports it: a composite project may not pull
+  // in a file it doesn't list (TS6307). We list the helper directly rather than referencing the app
+  // project — referencing it would require that project to emit, which the root's `tsc -b --noEmit`
+  // forbids (TS6310). The helper is pure TS, so it checks fine here under lib ES2022; `noEmit` means
+  // this project never emits it, so co-listing it with the app project is safe.
   "extends": "../tsconfig.base.json",
   "compilerOptions": {
     "lib": ["ES2022"],
     "types": ["node"],
-    "composite": false,
-    "noEmit": true
+    "noEmit": true,
+    "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.node.tsbuildinfo"
   },
-  "include": ["vite.config.ts", "playwright.config.ts"]
+  "include": [
+    "vite.config.ts",
+    "playwright.config.ts",
+    "src/lib/api-proxy.ts"
+  ]
 }

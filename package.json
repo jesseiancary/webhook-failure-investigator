@@ -10,7 +10,7 @@
   "scripts": {
     "dev": "pnpm -r --parallel dev",
     "build": "pnpm -r build",
-    "typecheck": "pnpm --filter @wfi/contracts build && tsc -b --noEmit --force && tsc -p web/tsconfig.node.json",
+    "typecheck": "pnpm --filter @wfi/contracts build && tsc -b --noEmit --force",
     "lint": "eslint .",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
